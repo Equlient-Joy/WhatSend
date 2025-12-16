@@ -1,0 +1,12 @@
+run = "npm install && npx prisma generate && npx pm2 start ecosystem.config.js --no-daemon"
+entrypoint = "ecosystem.config.js"
+
+[nix]
+channel = "stable-24_05"
+
+[env]
+NODE_ENV = "production"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
