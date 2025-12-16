@@ -7,12 +7,12 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import fs from 'fs';
 import path from 'path';
-import { pino } from 'pino';
+import pino, { Logger } from 'pino';
 
 export class BaileysService {
   private socket: WASocket | null = null;
   private sessionsDir: string;
-  private logger: any;
+  private logger: Logger;
 
   constructor() {
     this.sessionsDir = path.resolve(process.cwd(), 'whatsapp_sessions');
@@ -55,7 +55,7 @@ export class BaileysService {
       });
 
       // 4. Handle events
-      this.socket.ev.on('connection.update', (update: ConnectionState) => {
+      this.socket.ev.on('connection.update', (update: Partial<ConnectionState>) => {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
@@ -64,7 +64,8 @@ export class BaileysService {
         }
 
         if (connection === 'close') {
-          const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
+          const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output?.statusCode;
+          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
           
           this.logger.warn(`Connection closed for shop ${shopId} due to ${lastDisconnect?.error}. Reconnecting: ${shouldReconnect}`);
           
@@ -84,7 +85,7 @@ export class BaileysService {
       });
 
     } catch (error) {
-      this.logger.error(`Failed to initialize connection for shop ${shopId}:`, error);
+      this.logger.error(`Failed to initialize connection for shop ${shopId}: ${error}`);
       throw error;
     }
   }

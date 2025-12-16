@@ -1,5 +1,5 @@
 import { json, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSubmit } from "@remix-run/react";
+import { useLoaderData, useFetcher } from "@remix-run/react";
 import { 
   Page, 
   Layout, 
@@ -11,24 +11,18 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import QRCode from "react-qr-code";
-import { BaileysService } from "../services/whatsapp/baileys.service";
-import fs from "fs";
-import path from "path";
 
-// Helper to check connection status
-// Ideally this moves to a service, but inline for now is fine
-async function checkConnectionStatus(shopId: string) {
-  const sessionDir = path.resolve(process.cwd(), 'whatsapp_sessions', shopId);
-  // Connection logic is complex; existence of creds doesn't guarantee connection
-  // But for this simple check:
-  return fs.existsSync(sessionDir) && fs.existsSync(path.join(sessionDir, 'creds.json'));
-}
-
+// Server-only imports - these run only on the server
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const shopId = session.shop;
 
-  const isConnected = await checkConnectionStatus(shopId);
+  // Check connection status by checking if session folder exists
+  // This is a simple check - production would query database
+  const fs = await import("fs");
+  const path = await import("path");
+  const sessionDir = path.resolve(process.cwd(), 'whatsapp_sessions', shopId);
+  const isConnected = fs.existsSync(sessionDir) && fs.existsSync(path.join(sessionDir, 'creds.json'));
 
   return json({
     shop: shopId,
@@ -44,38 +38,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = formData.get("intent");
 
   if (intent === "connect") {
-    // NOTE: BaileysService.initializeConnection does not return the QR code in our current specific implementation.
-    // It emits it via event. We need to refactor BaileysService to return it or wait for the event.
-    // For this step, I will assume we refactored it or use a workaround. 
-    // Since I cannot change the service file easily in parallel, 
-    // I will mock the behavior: in a real app, you'd probably use a persistent store or a promise map.
-
-    // Let's instantiate and try.
-    const baileys = new BaileysService();
-    
-    // We need to capture the QR code from the event listener.
-    // This is tricky in a serverless/HTTP context because the action needs to return it.
-    // A common pattern is: 
-    // 1. Initialize returns a promise that resolves with QR
-    // 2. OR we store QR in DB/Cache and poll for it.
-    
-    // For now, let's assume we implement a simple Promise wrapper
-    let qrCode = "";
-    
-    // We'd need to modify BaileysService to return the QR.
-    // Since I can't do that now, I'll return a placeholder string or
-    // we assume the user will enhance the service code. 
-    // I will put a TODO comment.
-    
-    // await baileys.initializeConnection(shopId);
-    
-    // Mocking for UI development purposes as the Service API isn't fully ready for "return QR"
-    qrCode = "mock-qr-code-data-for-display"; 
-
+    // For now, return a mock QR code for UI development
+    // In production, this would initialize BaileysService and return real QR
+    const qrCode = "mock-qr-code-data-for-display"; 
     return json({ qrCode, status: "generated" });
   }
 
   if (intent === "disconnect") {
+    // Dynamic import to avoid bundling issues
+    const { BaileysService } = await import("../services/whatsapp/baileys.service");
     const baileys = new BaileysService();
     await baileys.logout(shopId);
     return json({ status: "disconnected", isConnected: false });
@@ -86,11 +57,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function WhatsAppConnectionPage() {
   const { isConnected, qrCode: initialQr } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<any>();
+  const fetcher = useFetcher<{ qrCode?: string; status?: string }>();
   
   // Use state to track QR if returned from action
   const qrCode = fetcher.data?.qrCode || initialQr;
-  const status = fetcher.data?.status;
 
   return (
     <Page title="WhatsApp Connection">
