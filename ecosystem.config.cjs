@@ -2,16 +2,16 @@ module.exports = {
   apps: [
     {
       name: "web",
-      script: "npm",
-      args: "run start",
+      script: "./node_modules/.bin/react-router-serve",
+      args: "./build/server/index.js",
       env: {
         NODE_ENV: "production",
       },
     },
     {
       name: "worker",
-      script: "npx",
-      args: "tsx workers/message-sender.ts",
+      script: "./node_modules/.bin/tsx",
+      args: "workers/message-sender.ts",
       env: {
         NODE_ENV: "production",
       },

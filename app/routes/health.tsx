@@ -1,5 +1,5 @@
-import { json } from "react-router";
+import { data } from "react-router";
 
 export function loader() {
-  return json({ status: "ok" });
+  return data({ status: "ok" });
 }

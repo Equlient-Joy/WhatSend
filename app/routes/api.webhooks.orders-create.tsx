@@ -1,5 +1,6 @@
-import { ActionFunctionArgs, json } from "@remix-run/node";
-import { authenticate } from "../../shopify.server";
+import type { ActionFunctionArgs } from "react-router";
+import { data } from "react-router";
+import { authenticate } from "../shopify.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   // 1. Authenticate the webhook request (verifies HMAC)
@@ -21,12 +22,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (!phone) {
     console.log(`No phone number found for order ${orderNumber}. Skipping WhatsApp notification.`);
-    return json({ success: false, reason: "no_phone" }, { status: 200 }); // Return 200 to acknowledge webhook
+    return data({ success: false, reason: "no_phone" }, { status: 200 }); // Return 200 to acknowledge webhook
   }
 
   try {
     // 3. Queue the Message - use dynamic import to avoid bundling issues
-    const { queueMessage } = await import("../../services/queue/message-queue.service");
+    const { queueMessage } = await import("../services/queue/message-queue.service");
     
     const message = `Hi! Thank you for your order ${orderNumber} at ${shop}. We will notify you when it ships!`;
     const shopId = shop; 
@@ -38,11 +39,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       priority: 1 // High priority for order confirmations
     });
 
-    return json({ success: true, queued: true });
+    return data({ success: true, queued: true });
 
   } catch (error) {
     console.error("Failed to process webhook:", error);
     // Still return 200 to Shopify so they don't retry indefinitely
-    return json({ success: false, error: "internal_error" }, { status: 200 });
+    return data({ success: false, error: "internal_error" }, { status: 200 });
   }
 };

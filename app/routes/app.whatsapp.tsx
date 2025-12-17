@@ -1,5 +1,5 @@
-import { json, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher, data } from "react-router";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { 
   Page, 
   Layout, 
@@ -24,7 +24,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const sessionDir = path.resolve(process.cwd(), 'whatsapp_sessions', shopId);
   const isConnected = fs.existsSync(sessionDir) && fs.existsSync(path.join(sessionDir, 'creds.json'));
 
-  return json({
+  return data({
     shop: shopId,
     isConnected,
     qrCode: null // Initial load has no QR
@@ -41,7 +41,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // For now, return a mock QR code for UI development
     // In production, this would initialize BaileysService and return real QR
     const qrCode = "mock-qr-code-data-for-display"; 
-    return json({ qrCode, status: "generated" });
+    return data({ qrCode, status: "generated" });
   }
 
   if (intent === "disconnect") {
@@ -49,7 +49,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const { BaileysService } = await import("../services/whatsapp/baileys.service");
     const baileys = new BaileysService();
     await baileys.logout(shopId);
-    return json({ status: "disconnected", isConnected: false });
+    return data({ status: "disconnected", isConnected: false });
   }
 
   return null;
