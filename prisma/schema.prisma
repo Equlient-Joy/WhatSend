@@ -2,6 +2,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -30,37 +31,154 @@ model Session {
   refreshTokenExpires   DateTime?
 }
 
+// ============ Shop Model ============
 model Shop {
   id                String    @id @default(cuid())
   shopifyDomain     String    @unique
   accessToken       String    @db.Text
+  scope             String?   @db.Text
   
   // WhatsApp Connection
   whatsappConnected Boolean   @default(false)
-  whatsappSession   Json?     // Stores Baileys Auth Keys
+  whatsappNumber    String?
+  whatsappSession   Json?     // Baileys session data for persistence
+  lastConnectedAt   DateTime?
+  connectionStatus  String    @default("disconnected") // connected, disconnected, error
+  
+  // Billing
+  planType          String    @default("free") // free, basic, pro
+  messagesSent      Int       @default(0)
+  messagesLimit     Int       @default(0)
+  billingCycleStart DateTime  @default(now())
+  subscriptionId    String?
+  
+  // Timestamps
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  installedAt       DateTime  @default(now())
   
   // Relations
   automations       Automation[]
   messageQueue      MessageQueue[]
+  messageHistory    MessageHistory[]
+  widgets           Widget[]
+  connectionLogs    ConnectionLog[]
   
-  createdAt         DateTime  @default(now())
+  @@index([shopifyDomain])
 }
 
+// ============ Automation Model ============
 model Automation {
   id          String   @id @default(cuid())
   shopId      String
   shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  type        String   // order_confirmation, etc.
+  
+  // Automation Config
+  type        String   // order_confirmation, order_fulfillment, abandoned_checkout, etc.
   enabled     Boolean  @default(false)
   template    String   @db.Text
+  
+  // Timing Config
+  delayMinutes Int     @default(0) // Delay before sending
+  
+  // Advanced Config
+  conditions  Json?    // Additional conditions (order value > X, etc.)
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([shopId, type])
+  @@index([shopId, enabled])
 }
 
+// ============ Message Queue Model ============
 model MessageQueue {
   id              String   @id @default(cuid())
   shopId          String
   shop            Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  // Message Details
   recipientPhone  String
+  recipientName   String?
   message         String   @db.Text
-  status          String   @default("pending") // pending, sent, failed
+  messageType     String   // order_confirmation, fulfillment, abandoned_checkout, etc.
+  
+  // Metadata
+  orderId         String?
+  orderNumber     String?
+  
+  // Status
+  status          String   @default("pending") // pending, processing, sent, failed, cancelled, paused
+  attempts        Int      @default(0)
+  maxAttempts     Int      @default(3)
+  lastError       String?  @db.Text
+  
+  // Timestamps
+  scheduledAt     DateTime @default(now())
+  processedAt     DateTime?
+  sentAt          DateTime?
   createdAt       DateTime @default(now())
+  
+  @@index([shopId, status])
+  @@index([status, scheduledAt])
+}
+
+// ============ Message History Model ============
+model MessageHistory {
+  id              String   @id @default(cuid())
+  shopId          String
+  shop            Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  // Message Details
+  recipientPhone  String
+  recipientName   String?
+  message         String   @db.Text
+  messageType     String
+  
+  // Metadata
+  orderId         String?
+  orderNumber     String?
+  
+  // Status
+  status          String   // sent, failed
+  errorMessage    String?  @db.Text
+  
+  // Timestamps
+  sentAt          DateTime @default(now())
+  
+  @@index([shopId, sentAt])
+  @@index([recipientPhone])
+}
+
+// ============ Widget Model ============
+model Widget {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  // Widget Config
+  type        String   // chat_button, direct_order, product_button
+  enabled     Boolean  @default(false)
+  settings    Json     // Position, color, text, etc.
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([shopId, type])
+}
+
+// ============ Connection Log Model ============
+model ConnectionLog {
+  id              String   @id @default(cuid())
+  shopId          String
+  shop            Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  event           String   // connected, disconnected, error, qr_scanned
+  details         String?  @db.Text
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([shopId, createdAt])
 }

@@ -1,0 +1,29 @@
+# Render Blueprint Configuration
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Main Web Application
+  - type: web
+    name: whatsend
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run setup && npm run build
+    startCommand: npm run render:start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SHOPIFY_API_KEY
+        sync: false
+      - key: SHOPIFY_API_SECRET
+        sync: false
+      - key: HOST
+        sync: false
+      - key: PORT
+        value: 3000

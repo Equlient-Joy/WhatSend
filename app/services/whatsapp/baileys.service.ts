@@ -95,10 +95,6 @@ export class BaileysService {
    */
   async sendMessage(shopId: string, to: string, message: string): Promise<void> {
     if (!this.socket) {
-      // Try to initialize if not ready (or throw error)
-      // For now, let's assuming initialization should have happened via worker/loader
-      // But for robustness, we could try to init here or throw.
-      // Since our worker calls initializeConnection first, we might just need to check.
       throw new Error(`WhatsApp socket not initialized for shop ${shopId}`);
     }
 
@@ -106,6 +102,40 @@ export class BaileysService {
     
     await this.socket.sendMessage(remoteJid, { text: message });
     this.logger.info(`Message sent to ${to}`);
+  }
+
+  /**
+   * Send an image message with caption to a phone number
+   */
+  async sendImageMessage(shopId: string, to: string, imageUrl: string, caption: string): Promise<void> {
+    if (!this.socket) {
+      throw new Error(`WhatsApp socket not initialized for shop ${shopId}`);
+    }
+
+    const remoteJid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+
+    try {
+      // Fetch the image from URL
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      }
+      
+      const imageBuffer = Buffer.from(await response.arrayBuffer());
+      
+      // Send image with caption
+      await this.socket.sendMessage(remoteJid, {
+        image: imageBuffer,
+        caption: caption
+      });
+      
+      this.logger.info(`Image message sent to ${to}`);
+    } catch (error) {
+      this.logger.error(`Failed to send image message: ${error}`);
+      // Fallback to text-only message
+      this.logger.info('Falling back to text-only message');
+      await this.socket.sendMessage(remoteJid, { text: caption });
+    }
   }
 
   /**

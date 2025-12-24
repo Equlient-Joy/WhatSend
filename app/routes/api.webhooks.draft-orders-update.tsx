@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { data } from "react-router";
 import { authenticate } from "../shopify.server";
 import { isAutomationEnabled, getAutomation, getOrCreateShop } from "../services/automation/automation.service";
-import { processTemplate, formatPhoneForWhatsApp } from "../services/automation/template.service";
+import { processTemplate, formatPhoneForWhatsApp, formatCurrency } from "../services/automation/template.service";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, shop, payload } = await authenticate.webhook(request);
@@ -17,16 +17,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   await getOrCreateShop(shop);
 
   // Check if automation is enabled
-  const isEnabled = await isAutomationEnabled(shop, 'abandoned_checkout');
+  const isEnabled = await isAutomationEnabled(shop, 'draft_order_recovery');
   if (!isEnabled) {
-    console.log(`Abandoned checkout automation is disabled for ${shop}`);
+    console.log(`Draft order recovery automation is disabled for ${shop}`);
     return data({ success: true, skipped: "automation_disabled" }, { status: 200 });
   }
 
-  const checkout = payload as {
-    id?: string;
-    token?: string;
-    abandoned_checkout_url?: string;
+  const draftOrder = payload as {
+    id?: string | number;
+    name?: string;
+    invoice_url?: string;
+    status?: string;
+    total_price?: string;
+    currency?: string;
     customer?: { 
       phone?: string; 
       first_name?: string;
@@ -45,40 +48,42 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       title?: string;
       quantity?: number;
     }>;
-    completed_at?: string;
   };
 
-  // Skip if checkout was completed
-  if (checkout.completed_at) {
-    console.log(`Checkout ${checkout.id} was completed, skipping abandoned checkout notification`);
-    return data({ success: true, skipped: "checkout_completed" }, { status: 200 });
+  // Skip if draft order is completed
+  if (draftOrder.status === 'completed') {
+    console.log(`Draft order ${draftOrder.id} is completed, skipping notification`);
+    return data({ success: true, skipped: "draft_completed" }, { status: 200 });
   }
 
-  const phone = checkout.shipping_address?.phone || checkout.billing_address?.phone || checkout.customer?.phone;
-  const customerName = checkout.shipping_address?.first_name || checkout.billing_address?.first_name || checkout.customer?.first_name || 'Customer';
+  const phone = draftOrder.shipping_address?.phone || draftOrder.billing_address?.phone || draftOrder.customer?.phone;
+  const customerName = draftOrder.shipping_address?.first_name || draftOrder.billing_address?.first_name || draftOrder.customer?.first_name || 'Customer';
 
   if (!phone) {
-    console.log(`No phone number found for checkout ${checkout.id}. Skipping WhatsApp notification.`);
+    console.log(`No phone number found for draft order ${draftOrder.id}. Skipping WhatsApp notification.`);
     return data({ success: false, reason: "no_phone" }, { status: 200 });
   }
 
   // Get product list
-  const productList = checkout.line_items?.map(item => item.name || item.title).join(', ') || '';
-  const productName = checkout.line_items?.[0]?.name || checkout.line_items?.[0]?.title || '';
+  const productList = draftOrder.line_items?.map(item => item.name || item.title).join(', ') || '';
+  const productName = draftOrder.line_items?.[0]?.name || draftOrder.line_items?.[0]?.title || '';
+  const orderTotal = draftOrder.total_price ? formatCurrency(draftOrder.total_price, draftOrder.currency) : '';
 
   // Clean shop name
   const shopName = shop.replace('.myshopify.com', '');
 
   try {
-    const automation = await getAutomation(shop, 'abandoned_checkout');
+    const automation = await getAutomation(shop, 'draft_order_recovery');
     if (!automation?.template) {
-      console.log(`No template found for abandoned_checkout automation`);
+      console.log(`No template found for draft_order_recovery automation`);
       return data({ success: false, reason: "no_template" }, { status: 200 });
     }
 
     const message = processTemplate(automation.template, {
       customerName,
-      checkoutUrl: checkout.abandoned_checkout_url || '',
+      orderNumber: draftOrder.name || '',
+      orderTotal,
+      orderUrl: draftOrder.invoice_url || '',
       productList,
       productName,
       shopName
@@ -86,24 +91,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const { queueMessage } = await import("../services/queue/message-queue.service");
 
-    // Calculate scheduled time with delay (default 2 hours)
-    const delayMinutes = automation.delayMinutes || 120;
+    // Add a small delay (default 30 minutes) for draft orders
+    const delayMinutes = automation.delayMinutes || 30;
     const scheduledAt = new Date(Date.now() + delayMinutes * 60 * 1000);
 
     await queueMessage({
       shopId: shop,
       phone: formatPhoneForWhatsApp(phone),
       message,
-      messageType: 'abandoned_checkout',
+      messageType: 'draft_order_recovery',
+      orderId: draftOrder.id?.toString(),
+      orderNumber: draftOrder.name,
       scheduledAt,
-      priority: 5 // Lower priority than order notifications
+      priority: 4
     });
 
-    console.log(`Abandoned checkout notification scheduled for ${checkout.id} at ${scheduledAt.toISOString()}`);
+    console.log(`Draft order recovery notification scheduled for ${draftOrder.id}`);
     return data({ success: true, queued: true, scheduledAt: scheduledAt.toISOString() });
 
   } catch (error) {
-    console.error("Failed to process checkout webhook:", error);
+    console.error("Failed to process draft_orders/update webhook:", error);
     return data({ success: false, error: "internal_error" }, { status: 200 });
   }
 };

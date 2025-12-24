@@ -1,254 +1,279 @@
-import { useEffect } from "react";
-import type {
-  ActionFunctionArgs,
-  HeadersFunction,
-  LoaderFunctionArgs,
-} from "react-router";
-import { useFetcher } from "react-router";
-import { useAppBridge } from "@shopify/app-bridge-react";
+import { useLoaderData, data } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
+import { 
+  Page, 
+  Card, 
+  Button, 
+  Text, 
+  BlockStack, 
+  InlineStack,
+  Badge,
+  Box,
+  ProgressBar
+} from "@shopify/polaris";
+import { SettingsIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
-import { boundary } from "@shopify/shopify-app-react-router/server";
+import { getAllAutomations, getShopConnectionStatus, getOrCreateShop, AUTOMATION_META, type AutomationType } from "../services/automation/automation.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
 
-  return null;
-};
+  // Ensure shop and default automations exist
+  await getOrCreateShop(shop);
 
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
+  // Get automations and connection status
+  const automations = await getAllAutomations(shop);
+  const connectionStatus = await getShopConnectionStatus(shop);
+
+  // Calculate setup progress
+  const isConnected = connectionStatus?.whatsappConnected || false;
+  const hasEnabledAutomation = automations.some(a => a.enabled);
+  const hasPlan = true; // For now, assume free plan
+  
+  const setupSteps = [
+    { id: 'plan', title: 'Choose a Plan', description: 'Select a subscription plan to start sending messages.', completed: hasPlan, action: 'Select Plan' },
+    { id: 'connect', title: 'Connect WhatsApp', description: 'Link your WhatsApp number to send messages.', completed: isConnected, action: 'Connect', link: '/app/whatsapp' },
+    { id: 'automations', title: 'Enable Automations', description: 'Turn on message automations for your store.', completed: hasEnabledAutomation, action: 'Configure', link: '#automations' }
   ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-          }
-        }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-        },
-      },
-    },
-  );
-  const responseJson = await response.json();
+  
+  const completedSteps = setupSteps.filter(s => s.completed).length;
 
-  const product = responseJson.data!.productCreate!.product!;
-  const variantId = product.variants.edges[0]!.node!.id!;
-
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
-        }
-      }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
-  );
-
-  const variantResponseJson = await variantResponse.json();
-
-  return {
-    product: responseJson!.data!.productCreate!.product,
-    variant:
-      variantResponseJson!.data!.productVariantsBulkUpdate!.productVariants,
-  };
+  return data({
+    shop,
+    automations,
+    isConnected,
+    setupSteps,
+    completedSteps,
+    totalSteps: setupSteps.length,
+    automationMeta: AUTOMATION_META
+  });
 };
 
-export default function Index() {
-  const fetcher = useFetcher<typeof action>();
+export default function AppHome() {
+  const { 
+    automations, 
+    setupSteps, 
+    completedSteps, 
+    totalSteps,
+    automationMeta 
+  } = useLoaderData<typeof loader>();
 
-  const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
+  // Separate main automations from widgets/coming soon
+  const mainAutomations: AutomationType[] = [
+    'order_confirmation',
+    'order_fulfillment', 
+    'order_cancellation',
+    'order_notification',
+    'admin_notification',
+    'abandoned_checkout',
+    'draft_order_recovery'
+  ];
 
-  useEffect(() => {
-    if (fetcher.data?.product?.id) {
-      shopify.toast.show("Product created");
-    }
-  }, [fetcher.data?.product?.id, shopify]);
+  const comingSoonAutomations: AutomationType[] = [
+    'auto_replier',
+    'back_in_stock'
+  ];
 
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
+  const widgets = [
+    { type: 'chat_button', title: 'WhatsApp Chat Button', description: 'Add a customizable WhatsApp chat button to your storefront for instant customer support.', icon: '💬' },
+    { type: 'direct_order', title: 'WhatsApp Direct Order', description: 'Add a direct order button that allows customers to send their cart items via WhatsApp.', icon: '🛍️' },
+    { type: 'product_button', title: 'WhatsApp Product Page Button', description: 'Add WhatsApp buttons to product pages allowing customers to inquire about specific products directly.', icon: '📱' }
+  ];
+
+  const getAutomationStatus = (type: string) => {
+    const automation = automations.find(a => a.type === type);
+    return automation?.enabled || false;
+  };
 
   return (
-    <s-page heading="Shopify app template">
-      <s-button slot="primary-action" onClick={generateProduct}>
-        Generate a product
-      </s-button>
+    <Page 
+      title="WhatSend Home"
+      primaryAction={
+        <Button variant="primary" url="/app/whatsapp">
+          Manage Connection
+        </Button>
+      }
+      secondaryActions={[
+        { content: 'Plans', url: '/app/plans' }
+      ]}
+    >
+      <BlockStack gap="500">
+        {/* Setup Guide */}
+        {completedSteps < totalSteps && (
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between">
+                <Text as="h2" variant="headingMd">Setup Guide</Text>
+                <Text as="span" variant="bodySm" tone="subdued">...</Text>
+              </InlineStack>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Use this personalized guide to get your app up and running.
+              </Text>
+              
+              <InlineStack gap="200" align="start" blockAlign="center">
+                <Text as="span" variant="bodySm">{completedSteps} / {totalSteps} completed</Text>
+                <div style={{ flexGrow: 1, maxWidth: '200px' }}>
+                  <ProgressBar progress={(completedSteps / totalSteps) * 100} size="small" />
+                </div>
+              </InlineStack>
 
-      <s-section heading="Congrats on creating a new Shopify app 🎉">
-        <s-paragraph>
-          This embedded app template uses{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/tools/app-bridge"
-            target="_blank"
-          >
-            App Bridge
-          </s-link>{" "}
-          interface examples like an{" "}
-          <s-link href="/app/additional">additional page in the app nav</s-link>
-          , as well as an{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            Admin GraphQL
-          </s-link>{" "}
-          mutation demo, to provide a starting point for app development.
-        </s-paragraph>
-      </s-section>
-      <s-section heading="Get started with products">
-        <s-paragraph>
-          Generate a product with GraphQL and get the JSON output for that
-          product. Learn more about the{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-            target="_blank"
-          >
-            productCreate
-          </s-link>{" "}
-          mutation in our API references.
-        </s-paragraph>
-        <s-stack direction="inline" gap="base">
-          <s-button
-            onClick={generateProduct}
-            {...(isLoading ? { loading: true } : {})}
-          >
-            Generate a product
-          </s-button>
-          {fetcher.data?.product && (
-            <s-button
-              onClick={() => {
-                shopify.intents.invoke?.("edit:shopify/Product", {
-                  value: fetcher.data?.product?.id,
-                });
-              }}
-              target="_blank"
-              variant="tertiary"
-            >
-              Edit product
-            </s-button>
-          )}
-        </s-stack>
-        {fetcher.data?.product && (
-          <s-section heading="productCreate mutation">
-            <s-stack direction="block" gap="base">
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.product, null, 2)}</code>
-                </pre>
-              </s-box>
-
-              <s-heading>productVariantsBulkUpdate mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.variant, null, 2)}</code>
-                </pre>
-              </s-box>
-            </s-stack>
-          </s-section>
+              <BlockStack gap="300">
+                {setupSteps.map((step, index) => (
+                  <Box key={step.id} paddingBlockStart="200">
+                    <InlineStack gap="300" align="start" blockAlign="start">
+                      <div style={{ 
+                        width: '24px', 
+                        height: '24px', 
+                        borderRadius: '50%', 
+                        backgroundColor: step.completed ? '#008060' : '#e4e5e7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: step.completed ? 'white' : '#6d7175',
+                        fontSize: '12px'
+                      }}>
+                        {step.completed ? '✓' : index + 1}
+                      </div>
+                      <BlockStack gap="100">
+                        <Text as="span" variant="bodyMd" fontWeight="semibold">{step.title}</Text>
+                        <Text as="p" variant="bodySm" tone="subdued">{step.description}</Text>
+                        {!step.completed && step.link && (
+                          <Button size="slim" url={step.link}>{step.action}</Button>
+                        )}
+                      </BlockStack>
+                    </InlineStack>
+                  </Box>
+                ))}
+              </BlockStack>
+            </BlockStack>
+          </Card>
         )}
-      </s-section>
 
-      <s-section slot="aside" heading="App template specs">
-        <s-paragraph>
-          <s-text>Framework: </s-text>
-          <s-link href="https://reactrouter.com/" target="_blank">
-            React Router
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Interface: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/app-home/using-polaris-components"
-            target="_blank"
-          >
-            Polaris web components
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>API: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            GraphQL
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Database: </s-text>
-          <s-link href="https://www.prisma.io/" target="_blank">
-            Prisma
-          </s-link>
-        </s-paragraph>
-      </s-section>
+        {/* Welcome Card */}
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingLg">Welcome to WhatSend</Text>
+            <Text as="p" variant="bodyMd">
+              Connect with your customers on WhatsApp and boost your sales with automated messaging workflows.
+            </Text>
+            <InlineStack gap="200">
+              <Button url="/app/dashboard" variant="secondary">📊 View Dashboard</Button>
+              <Button url="/app/plans" variant="secondary">💳 Plans & Usage</Button>
+            </InlineStack>
+          </BlockStack>
+        </Card>
 
-      <s-section slot="aside" heading="Next steps">
-        <s-unordered-list>
-          <s-list-item>
-            Build an{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/getting-started/build-app-example"
-              target="_blank"
-            >
-              example app
-            </s-link>
-          </s-list-item>
-          <s-list-item>
-            Explore Shopify&apos;s API with{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-              target="_blank"
-            >
-              GraphiQL
-            </s-link>
-          </s-list-item>
-        </s-unordered-list>
-      </s-section>
-    </s-page>
+        {/* WhatsApp Automation Features */}
+        <Box id="automations">
+          <Card>
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">WhatsApp Automation Features</Text>
+              
+              <BlockStack gap="0">
+                {mainAutomations.map((type) => {
+                  const meta = automationMeta[type];
+                  const isEnabled = getAutomationStatus(type);
+                  
+                  return (
+                    <Box key={type} paddingBlock="300" borderBlockEndWidth="025" borderColor="border">
+                      <InlineStack align="space-between" blockAlign="center">
+                        <InlineStack gap="300" blockAlign="center">
+                          <Text as="span" variant="bodyLg">{meta.icon}</Text>
+                          <BlockStack gap="050">
+                            <InlineStack gap="200" blockAlign="center">
+                              <Text as="span" variant="bodyMd" fontWeight="semibold">{meta.title}</Text>
+                              <Badge tone={isEnabled ? "success" : "new"}>{isEnabled ? 'On' : 'Off'}</Badge>
+                            </InlineStack>
+                            <Text as="p" variant="bodySm" tone="subdued">{meta.description}</Text>
+                          </BlockStack>
+                        </InlineStack>
+                        <Button url={`/app/automation/${type}`} variant="secondary" icon={SettingsIcon}>
+                          Settings
+                        </Button>
+                      </InlineStack>
+                    </Box>
+                  );
+                })}
+
+                {/* Coming Soon Automations */}
+                {comingSoonAutomations.map((type) => {
+                  const meta = automationMeta[type];
+                  
+                  return (
+                    <Box key={type} paddingBlock="300" borderBlockEndWidth="025" borderColor="border">
+                      <InlineStack align="space-between" blockAlign="center">
+                        <InlineStack gap="300" blockAlign="center">
+                          <Text as="span" variant="bodyLg">{meta.icon}</Text>
+                          <BlockStack gap="050">
+                            <InlineStack gap="200" blockAlign="center">
+                              <Text as="span" variant="bodyMd" fontWeight="semibold">{meta.title}</Text>
+                              <Badge tone="attention">Coming Soon</Badge>
+                              <Badge tone="new">Off</Badge>
+                            </InlineStack>
+                            <Text as="p" variant="bodySm" tone="subdued">{meta.description}</Text>
+                          </BlockStack>
+                        </InlineStack>
+                        <Button disabled variant="secondary" icon={SettingsIcon}>
+                          Settings
+                        </Button>
+                      </InlineStack>
+                    </Box>
+                  );
+                })}
+              </BlockStack>
+            </BlockStack>
+          </Card>
+        </Box>
+
+        {/* WhatsApp Buttons & Widgets */}
+        <Card>
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">WhatsApp Buttons & Widgets</Text>
+            
+            <BlockStack gap="0">
+              {widgets.map((widget) => (
+                <Box key={widget.type} paddingBlock="300" borderBlockEndWidth="025" borderColor="border">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <InlineStack gap="300" blockAlign="center">
+                      <Text as="span" variant="bodyLg">{widget.icon}</Text>
+                      <BlockStack gap="050">
+                        <InlineStack gap="200" blockAlign="center">
+                          <Text as="span" variant="bodyMd" fontWeight="semibold">{widget.title}</Text>
+                          <Badge tone="new">Off</Badge>
+                        </InlineStack>
+                        <Text as="p" variant="bodySm" tone="subdued">{widget.description}</Text>
+                      </BlockStack>
+                    </InlineStack>
+                    <Button disabled variant="secondary" icon={SettingsIcon}>
+                      Settings
+                    </Button>
+                  </InlineStack>
+                </Box>
+              ))}
+            </BlockStack>
+          </BlockStack>
+        </Card>
+
+        {/* Shopify Flow Integration */}
+        <Card>
+          <InlineStack align="space-between" blockAlign="center">
+            <InlineStack gap="300" blockAlign="center">
+              <Text as="span" variant="bodyLg">⚡</Text>
+              <BlockStack gap="050">
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" variant="bodyMd" fontWeight="semibold">Shopify Flow Integration</Text>
+                  <Badge tone="success">Available</Badge>
+                </InlineStack>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Automate your WhatsApp messaging with Shopify Flow. Create custom workflows to send messages based on various triggers.
+                </Text>
+              </BlockStack>
+            </InlineStack>
+            <Button variant="secondary">View Guide</Button>
+          </InlineStack>
+        </Card>
+      </BlockStack>
+    </Page>
   );
 }
-
-export const headers: HeadersFunction = (headersArgs) => {
-  return boundary.headers(headersArgs);
-};

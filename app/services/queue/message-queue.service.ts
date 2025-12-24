@@ -22,10 +22,15 @@ export const messageQueue = new Queue('whatsapp-messages', {
   },
 });
 
-interface QueueMessagePayload {
+export interface QueueMessagePayload {
   shopId: string;
   phone: string;
   message: string;
+  messageType: string;       // order_confirmation, fulfillment, etc.
+  imageUrl?: string;         // Product image URL (optional)
+  orderId?: string;          // For tracking
+  orderNumber?: string;      // For tracking
+  scheduledAt?: Date;        // For delayed messages (abandoned checkout)
   priority?: number;
 }
 
@@ -33,18 +38,36 @@ interface QueueMessagePayload {
  * Adds a WhatsApp message to the processing queue
  */
 export async function queueMessage(payload: QueueMessagePayload) {
-  const { shopId, phone, message, priority = 10 } = payload;
+  const { 
+    shopId, 
+    phone, 
+    message, 
+    messageType,
+    imageUrl,
+    orderId,
+    orderNumber,
+    scheduledAt,
+    priority = 10 
+  } = payload;
   
   // Use shopId as part of the job ID to potentially allow debouncing or tracking
-  const jobId = `${shopId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const jobId = `${shopId}-${messageType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Calculate delay if scheduledAt is provided
+  const delay = scheduledAt ? Math.max(0, scheduledAt.getTime() - Date.now()) : undefined;
 
   await messageQueue.add('send-message', {
     shopId,
     phone,
-    message
+    message,
+    messageType,
+    imageUrl,
+    orderId,
+    orderNumber
   }, {
-    priority, // Lower number = higher priority in BullMQ? Actually BullMQ standard is no priority, but if prioritized: 1 is highest
-    jobId
+    priority,
+    jobId,
+    delay
   });
 
   return jobId;
