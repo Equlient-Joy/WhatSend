@@ -6,6 +6,7 @@ module.exports = {
       args: "./build/server/index.js",
       env: {
         NODE_ENV: "production",
+        PORT: process.env.PORT || 3000,
       },
     },
     {
