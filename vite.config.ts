@@ -15,7 +15,15 @@ if (
   delete process.env.HOST;
 }
 
-const host = new URL(process.env.SHOPIFY_APP_URL || "http://localhost")
+// Helper to ensure URL has protocol
+function ensureProtocol(url: string): string {
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return `https://${url}`;
+  }
+  return url;
+}
+
+const host = new URL(ensureProtocol(process.env.SHOPIFY_APP_URL || "http://localhost"))
   .hostname;
 
 let hmrConfig;
