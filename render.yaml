@@ -25,5 +25,7 @@ services:
         sync: false
       - key: HOST
         sync: false
+      - key: SHOPIFY_APP_URL
+        sync: false
       - key: PORT
         value: 3000

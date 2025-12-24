@@ -10,7 +10,7 @@ import prisma from "./db.server";
 // Helper to ensure URL has protocol
 function ensureProtocol(url: string | undefined): string {
   if (!url) return "";
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
     return `https://${url}`;
   }
   return url;
@@ -24,7 +24,7 @@ const shopify = shopifyApp({
   appUrl: ensureProtocol(process.env.SHOPIFY_APP_URL),
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
-  distribution: AppDistribution.AppStore,
+  distribution: AppDistribution.SingleMerchant,
   future: {
     expiringOfflineAccessTokens: true,
   },
