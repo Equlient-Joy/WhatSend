@@ -16,38 +16,43 @@ import { authenticate } from "../shopify.server";
 import { getAllAutomations, getShopConnectionStatus, getOrCreateShop, AUTOMATION_META, type AutomationType } from "../services/automation/automation.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = session.shop;
+  try {
+    const { session } = await authenticate.admin(request);
+    const shop = session.shop;
 
-  // Ensure shop and default automations exist
-  await getOrCreateShop(shop);
+    // Ensure shop and default automations exist
+    await getOrCreateShop(shop);
 
-  // Get automations and connection status
-  const automations = await getAllAutomations(shop);
-  const connectionStatus = await getShopConnectionStatus(shop);
+    // Get automations and connection status
+    const automations = await getAllAutomations(shop);
+    const connectionStatus = await getShopConnectionStatus(shop);
 
-  // Calculate setup progress
-  const isConnected = connectionStatus?.whatsappConnected || false;
-  const hasEnabledAutomation = automations.some(a => a.enabled);
-  const hasPlan = true; // For now, assume free plan
-  
-  const setupSteps = [
-    { id: 'plan', title: 'Choose a Plan', description: 'Select a subscription plan to start sending messages.', completed: hasPlan, action: 'Select Plan' },
-    { id: 'connect', title: 'Connect WhatsApp', description: 'Link your WhatsApp number to send messages.', completed: isConnected, action: 'Connect', link: '/app/whatsapp' },
-    { id: 'automations', title: 'Enable Automations', description: 'Turn on message automations for your store.', completed: hasEnabledAutomation, action: 'Configure', link: '#automations' }
-  ];
-  
-  const completedSteps = setupSteps.filter(s => s.completed).length;
+    // Calculate setup progress
+    const isConnected = connectionStatus?.whatsappConnected || false;
+    const hasEnabledAutomation = automations.some(a => a.enabled);
+    const hasPlan = true; // For now, assume free plan
+    
+    const setupSteps = [
+      { id: 'plan', title: 'Choose a Plan', description: 'Select a subscription plan to start sending messages.', completed: hasPlan, action: 'Select Plan' },
+      { id: 'connect', title: 'Connect WhatsApp', description: 'Link your WhatsApp number to send messages.', completed: isConnected, action: 'Connect', link: '/app/whatsapp' },
+      { id: 'automations', title: 'Enable Automations', description: 'Turn on message automations for your store.', completed: hasEnabledAutomation, action: 'Configure', link: '#automations' }
+    ];
+    
+    const completedSteps = setupSteps.filter(s => s.completed).length;
 
-  return data({
-    shop,
-    automations,
-    isConnected,
-    setupSteps,
-    completedSteps,
-    totalSteps: setupSteps.length,
-    automationMeta: AUTOMATION_META
-  });
+    return data({
+      shop,
+      automations,
+      isConnected,
+      setupSteps,
+      completedSteps,
+      totalSteps: setupSteps.length,
+      automationMeta: AUTOMATION_META
+    });
+  } catch (error) {
+    console.error("LOADER ERROR in app._index.tsx:", error);
+    throw error;
+  }
 };
 
 export default function AppHome() {
