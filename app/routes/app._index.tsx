@@ -11,24 +11,21 @@ import {
   Box,
   ProgressBar,
   Icon,
-  Divider,
-  Collapsible,
-  Link
+  Collapsible
 } from "@shopify/polaris";
 import { 
   SettingsIcon, 
-  CheckCircleIcon,
   OrderIcon,
   DeliveryIcon,
-  CancelIcon,
+  AlertCircleIcon,
   NotificationIcon,
   PersonIcon,
   CartIcon,
   NoteIcon,
   ChatIcon,
   ProductIcon,
-  AppsIcon,
-  AutomationIcon
+  HomeIcon,
+  WandIcon
 } from "@shopify/polaris-icons";
 import { useState } from "react";
 import { authenticate } from "../shopify.server";
@@ -73,7 +70,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 const automationIcons: Record<string, typeof OrderIcon> = {
   order_confirmation: OrderIcon,
   order_fulfillment: DeliveryIcon,
-  order_cancellation: CancelIcon,
+  order_cancellation: AlertCircleIcon,
   order_notification: NotificationIcon,
   admin_notification: PersonIcon,
   abandoned_checkout: CartIcon,
@@ -261,8 +258,8 @@ export default function AppHome() {
               Connect with your customers on WhatsApp and boost your sales with automated messaging workflows.
             </Text>
             <InlineStack gap="300">
-              <Button url="/app/dashboard" icon={AppsIcon}>View Dashboard</Button>
-              <Button url="/app/plans" icon={AppsIcon}>Plans & Usage</Button>
+              <Button url="/app/dashboard" icon={HomeIcon}>View Dashboard</Button>
+              <Button url="/app/plans" icon={HomeIcon}>Plans & Usage</Button>
             </InlineStack>
           </BlockStack>
         </Card>
@@ -338,7 +335,7 @@ export default function AppHome() {
           <InlineStack align="space-between" blockAlign="center" wrap={false}>
             <InlineStack gap="400" blockAlign="start" wrap={false}>
               <Box>
-                <Icon source={AutomationIcon} tone="base" />
+                <Icon source={WandIcon} tone="base" />
               </Box>
               <BlockStack gap="100">
                 <InlineStack gap="200" blockAlign="center">
