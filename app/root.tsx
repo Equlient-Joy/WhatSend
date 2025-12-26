@@ -1,7 +1,10 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 
-export function ErrorBoundary({ error }: { error: Error }) {
-  console.error(error);
+import { useRouteError, isRouteErrorResponse } from "react-router";
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  console.error("ROOT BOUNDARY ERROR:", error);
   return (
     <html lang="en">
       <head>
@@ -11,8 +14,7 @@ export function ErrorBoundary({ error }: { error: Error }) {
       </head>
       <body>
         <h1>App Error</h1>
-        <pre>{error.message}</pre>
-        <pre>{error.stack}</pre>
+        <pre>{error instanceof Error ? error.stack : JSON.stringify(error)}</pre>
         <Scripts />
       </body>
     </html>
