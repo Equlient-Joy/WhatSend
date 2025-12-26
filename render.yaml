@@ -28,4 +28,4 @@ services:
       - key: SHOPIFY_APP_URL
         sync: false
       - key: PORT
-        value: 3000
+        value: 10000
