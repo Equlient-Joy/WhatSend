@@ -12,7 +12,7 @@
     "start": "react-router-serve ./build/server/index.js",
     "render:start": "pm2-runtime start ecosystem.config.cjs",
     "docker-start": "npm run setup && npm run start",
-    "setup": "prisma generate && prisma migrate deploy",
+    "setup": "prisma generate && prisma migrate reset --force",
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
     "shopify": "shopify",
     "prisma": "prisma",
