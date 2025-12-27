@@ -258,7 +258,6 @@ export default function AppHome() {
               Connect with your customers on WhatsApp and boost your sales with automated messaging workflows.
             </Text>
             <InlineStack gap="300">
-              <Button url="/app/dashboard" icon={HomeIcon}>View Dashboard</Button>
               <Button url="/app/plans" icon={HomeIcon}>Plans & Usage</Button>
             </InlineStack>
           </BlockStack>
@@ -348,6 +347,27 @@ export default function AppHome() {
               </BlockStack>
             </InlineStack>
             <Button>View Guide</Button>
+          </InlineStack>
+        </Card>
+
+        {/* Bulk Message Sender */}
+        <Card padding="400">
+          <InlineStack align="space-between" blockAlign="center" wrap={false}>
+            <InlineStack gap="400" blockAlign="start" wrap={false}>
+              <Box>
+                <Icon source={ChatIcon} tone="base" />
+              </Box>
+              <BlockStack gap="100">
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" variant="bodyMd" fontWeight="semibold">Bulk Message Sender</Text>
+                  <Badge tone="warning">Use with Caution</Badge>
+                </InlineStack>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Send WhatsApp messages to customer segments. Follow WhatsApp guidelines to avoid account suspension.
+                </Text>
+              </BlockStack>
+            </InlineStack>
+            <Button url="/app/campaigns/new">Open Tool</Button>
           </InlineStack>
         </Card>
       </BlockStack>

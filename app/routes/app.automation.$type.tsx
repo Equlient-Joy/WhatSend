@@ -179,6 +179,7 @@ export default function AutomationSettingsPage() {
                         value={delayMinutes}
                         onChange={setDelayMinutes}
                         name="delayMinutes"
+                        autoComplete="off"
                         helpText={type === 'abandoned_checkout' 
                           ? "How long to wait before sending abandoned cart message (recommended: 120 minutes)" 
                           : "How long to wait before sending follow-up message"
@@ -194,6 +195,7 @@ export default function AutomationSettingsPage() {
                         onChange={setAdminPhone}
                         name="adminPhone"
                         placeholder="+1234567890"
+                        autoComplete="off"
                         helpText="The phone number to receive order notifications (include country code)"
                       />
                     )}

@@ -63,6 +63,7 @@ model Shop {
   messageHistory    MessageHistory[]
   widgets           Widget[]
   connectionLogs    ConnectionLog[]
+  campaigns         Campaign[]
   
   @@index([shopifyDomain])
 }
@@ -107,6 +108,8 @@ model MessageQueue {
   // Metadata
   orderId         String?
   orderNumber     String?
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id])
   
   // Status
   status          String   @default("pending") // pending, processing, sent, failed, cancelled, paused
@@ -182,3 +185,32 @@ model ConnectionLog {
   
   @@index([shopId, createdAt])
 }
+
+// ============ Campaign Model ============
+model Campaign {
+  id              String         @id @default(cuid())
+  shopId          String
+  shop            Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  name            String
+  segmentId       String         // Shopify Segment ID
+  segmentQuery    String         @db.Text // The query string from Shopify
+  message         String         @db.Text
+  
+  // Status & Stats
+  status          String         @default("draft") // draft, scheduled, processing, completed, failed
+  totalRecipients Int            @default(0)
+  sentCount       Int            @default(0)
+  failedCount     Int            @default(0)
+  
+  scheduledAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  messages        MessageQueue[]
+
+  @@index([shopId, status])
+}
+
+

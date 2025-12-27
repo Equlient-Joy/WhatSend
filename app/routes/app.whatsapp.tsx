@@ -90,8 +90,9 @@ export default function WhatsAppConnectionPage() {
               {!isConnected && !qrCode && (
                 <BlockStack>
                   <fetcher.Form method="post">
-                    <Button submit variant="primary" name="intent" value="connect" loading={fetcher.state === "submitting"}>
-                      Generate QR Code
+                    <input type="hidden" name="intent" value="connect" />
+                    <Button submit variant="primary" loading={fetcher.state === "submitting"}>
+                      Connect WhatsApp
                     </Button>
                   </fetcher.Form>
                 </BlockStack>
@@ -106,7 +107,8 @@ export default function WhatsAppConnectionPage() {
 
               {isConnected && (
                  <fetcher.Form method="post">
-                    <Button submit tone="critical" name="intent" value="disconnect" loading={fetcher.state === "submitting"}>
+                    <input type="hidden" name="intent" value="disconnect" />
+                    <Button submit tone="critical" loading={fetcher.state === "submitting"}>
                       Disconnect WhatsApp
                     </Button>
                  </fetcher.Form>

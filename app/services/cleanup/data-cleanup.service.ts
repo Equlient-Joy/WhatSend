@@ -23,7 +23,7 @@ export async function cleanupMessageHistory(retentionDays: number = RETENTION_PE
 
   const result = await prisma.messageHistory.deleteMany({
     where: {
-      createdAt: {
+      sentAt: {
         lt: cutoffDate
       }
     }
@@ -64,7 +64,7 @@ export async function cleanupMessageQueue(retentionDays: number = RETENTION_PERI
       status: {
         in: ['completed', 'failed']
       },
-      updatedAt: {
+      scheduledAt: {
         lt: cutoffDate
       }
     }
