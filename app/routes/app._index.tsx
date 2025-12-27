@@ -10,7 +10,6 @@ import {
   Badge,
   Box,
   ProgressBar,
-  Icon,
   Collapsible
 } from "@shopify/polaris";
 import { 
@@ -78,9 +77,9 @@ const automationIcons: Record<string, typeof OrderIcon> = {
   back_in_stock: ProductIcon,
 };
 
-// Feature row component matching reference design
+// Feature row component matching WhatFlow reference design
 function FeatureRow({ 
-  icon, 
+  icon: IconComponent, 
   title, 
   description, 
   isEnabled, 
@@ -97,30 +96,51 @@ function FeatureRow({
   disabled?: boolean;
 }) {
   return (
-    <Box padding="400" borderBlockEndWidth="025" borderColor="border-secondary">
-      <InlineStack align="space-between" blockAlign="center" wrap={false}>
-        <InlineStack gap="400" blockAlign="start" wrap={false}>
-          <div style={{ width: '20px', height: '20px', flexShrink: 0 }}>
-            <Icon source={icon} tone="base" />
+    <div style={{ 
+      padding: '16px 20px', 
+      borderBottom: '1px solid #e1e3e5',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '16px'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+        {/* Green circular icon background */}
+        <div style={{ 
+          width: '40px', 
+          height: '40px', 
+          borderRadius: '50%',
+          backgroundColor: '#25D366', // WhatsApp green
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0
+        }}>
+          <div style={{ width: '20px', height: '20px', color: 'white' }}>
+            <IconComponent />
           </div>
-          <BlockStack gap="100">
-            <InlineStack gap="200" blockAlign="center">
-              <Text as="span" variant="bodyMd" fontWeight="semibold">{title}</Text>
-              {isComingSoon && <Badge tone="warning">Coming Soon</Badge>}
-              <Badge tone={isEnabled ? "success" : "new"}>{isEnabled ? 'On' : 'Off'}</Badge>
-            </InlineStack>
-            <Text as="p" variant="bodySm" tone="subdued">{description}</Text>
-          </BlockStack>
-        </InlineStack>
-        <Button 
-          url={settingsUrl} 
-          disabled={disabled}
-          icon={SettingsIcon}
-        >
-          Settings
-        </Button>
-      </InlineStack>
-    </Box>
+        </div>
+        
+        {/* Title and description */}
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span style={{ fontWeight: 600, fontSize: '14px', color: '#202223' }}>{title}</span>
+            {isComingSoon && <Badge tone="warning">Coming Soon</Badge>}
+            <Badge tone={isEnabled ? "success" : "new"}>{isEnabled ? 'On' : 'Off'}</Badge>
+          </div>
+          <p style={{ fontSize: '13px', color: '#6d7175', margin: 0 }}>{description}</p>
+        </div>
+      </div>
+      
+      {/* Settings button */}
+      <Button 
+        url={settingsUrl} 
+        disabled={disabled}
+        icon={SettingsIcon}
+      >
+        Settings
+      </Button>
+    </div>
   );
 }
 
@@ -329,45 +349,79 @@ export default function AppHome() {
         </BlockStack>
 
         {/* Shopify Flow Integration */}
-        <Card padding="400">
-          <InlineStack align="space-between" blockAlign="center" wrap={false}>
-            <InlineStack gap="400" blockAlign="start" wrap={false}>
-              <div style={{ width: '20px', height: '20px', flexShrink: 0 }}>
-                <Icon source={WandIcon} tone="base" />
+        <Card padding="0">
+          <div style={{ 
+            padding: '16px 20px', 
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+              <div style={{ 
+                width: '40px', 
+                height: '40px', 
+                borderRadius: '50%',
+                backgroundColor: '#25D366',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <div style={{ width: '20px', height: '20px', color: 'white' }}>
+                  <WandIcon />
+                </div>
               </div>
-              <BlockStack gap="100">
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="span" variant="bodyMd" fontWeight="semibold">Shopify Flow Integration</Text>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ fontWeight: 600, fontSize: '14px', color: '#202223' }}>Shopify Flow Integration</span>
                   <Badge tone="success">Available</Badge>
-                </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">
+                </div>
+                <p style={{ fontSize: '13px', color: '#6d7175', margin: 0 }}>
                   Automate your WhatsApp messaging with Shopify Flow. Create custom workflows to send messages based on various triggers.
-                </Text>
-              </BlockStack>
-            </InlineStack>
+                </p>
+              </div>
+            </div>
             <Button>View Guide</Button>
-          </InlineStack>
+          </div>
         </Card>
 
         {/* Bulk Message Sender */}
-        <Card padding="400">
-          <InlineStack align="space-between" blockAlign="center" wrap={false}>
-            <InlineStack gap="400" blockAlign="start" wrap={false}>
-              <div style={{ width: '20px', height: '20px', flexShrink: 0 }}>
-                <Icon source={ChatIcon} tone="base" />
+        <Card padding="0">
+          <div style={{ 
+            padding: '16px 20px', 
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+              <div style={{ 
+                width: '40px', 
+                height: '40px', 
+                borderRadius: '50%',
+                backgroundColor: '#25D366',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <div style={{ width: '20px', height: '20px', color: 'white' }}>
+                  <ChatIcon />
+                </div>
               </div>
-              <BlockStack gap="100">
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="span" variant="bodyMd" fontWeight="semibold">Bulk Message Sender</Text>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ fontWeight: 600, fontSize: '14px', color: '#202223' }}>Bulk Message Sender</span>
                   <Badge tone="warning">Use with Caution</Badge>
-                </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">
+                </div>
+                <p style={{ fontSize: '13px', color: '#6d7175', margin: 0 }}>
                   Send WhatsApp messages to customer segments. Follow WhatsApp guidelines to avoid account suspension.
-                </Text>
-              </BlockStack>
-            </InlineStack>
+                </p>
+              </div>
+            </div>
             <Button url="/app/campaigns/new">Open Tool</Button>
-          </InlineStack>
+          </div>
         </Card>
       </BlockStack>
     </Page>
