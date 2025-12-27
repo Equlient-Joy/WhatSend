@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Outlet, useLoaderData, useRouteError } from "react-router";
+import { Link, Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { AppProvider as PolarisProvider } from "@shopify/polaris";
@@ -34,7 +34,21 @@ export default function App() {
 
   return (
     <AppProvider embedded apiKey={apiKey}>
-      <PolarisProvider i18n={enTranslations}>
+      <PolarisProvider 
+        i18n={enTranslations}
+        linkComponent={({ children, url, ...rest }: any) => {
+          // Fix for "refused to connect" errors:
+          // Use React Router Link for internal URLs to avoid reloading the iframe
+          if (url && url.startsWith('/') && !url.startsWith('//')) {
+             return (
+               <Link to={url} {...rest}>{children}</Link>
+             );
+          }
+          return (
+            <a href={url} target="_blank" rel="noopener noreferrer" {...rest}>{children}</a>
+          );
+        }}
+      >
         <s-app-nav>
           <s-link href="/app">Home</s-link>
           <s-link href="/app/additional">Additional page</s-link>
