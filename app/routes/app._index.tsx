@@ -99,7 +99,6 @@ function FeatureRow({
   return (
     <div style={{ 
       padding: '16px 20px', 
-      borderBottom: '1px solid #e1e3e5',
       display: 'flex',
       alignItems: 'flex-start',
       justifyContent: 'space-between',
@@ -281,68 +280,66 @@ export default function AppHome() {
 
         {/* WhatsApp Automation Features */}
         <Box id="automations">
-          <BlockStack gap="400">
+          <BlockStack gap="300">
             <Text as="h2" variant="headingMd">WhatsApp Automation Features</Text>
             
-            <Card padding="0">
-              <BlockStack gap="0">
-                {mainAutomations.map((type) => {
-                  const meta = automationMeta[type];
-                  const isEnabled = getAutomationStatus(type);
-                  const IconComponent = automationIcons[type] || OrderIcon;
-                  
-                  return (
-                    <FeatureRow
-                      key={type}
-                      icon={IconComponent}
-                      title={meta.title}
-                      description={meta.description}
-                      isEnabled={isEnabled}
-                      settingsUrl={`/app/automation/${type}`}
-                    />
-                  );
-                })}
+            {/* Each automation in its own card */}
+            {mainAutomations.map((type) => {
+              const meta = automationMeta[type];
+              const isEnabled = getAutomationStatus(type);
+              const IconComponent = automationIcons[type] || OrderIcon;
+              
+              return (
+                <Card key={type} padding="0">
+                  <FeatureRow
+                    icon={IconComponent}
+                    title={meta.title}
+                    description={meta.description}
+                    isEnabled={isEnabled}
+                    settingsUrl={`/app/automation/${type}`}
+                  />
+                </Card>
+              );
+            })}
 
-                {/* Coming Soon Automations */}
-                {comingSoonAutomations.map((type) => {
-                  const meta = automationMeta[type];
-                  const IconComponent = automationIcons[type] || OrderIcon;
-                  
-                  return (
-                    <FeatureRow
-                      key={type}
-                      icon={IconComponent}
-                      title={meta.title}
-                      description={meta.description}
-                      isEnabled={false}
-                      isComingSoon={true}
-                      disabled={true}
-                    />
-                  );
-                })}
-              </BlockStack>
-            </Card>
+            {/* Coming Soon Automations */}
+            {comingSoonAutomations.map((type) => {
+              const meta = automationMeta[type];
+              const IconComponent = automationIcons[type] || OrderIcon;
+              
+              return (
+                <Card key={type} padding="0">
+                  <FeatureRow
+                    icon={IconComponent}
+                    title={meta.title}
+                    description={meta.description}
+                    isEnabled={false}
+                    isComingSoon={true}
+                    disabled={true}
+                  />
+                </Card>
+              );
+            })}
           </BlockStack>
         </Box>
 
         {/* WhatsApp Buttons & Widgets */}
-        <BlockStack gap="400">
+        <BlockStack gap="300">
           <Text as="h2" variant="headingMd">WhatsApp Buttons & Widgets</Text>
           
-          <Card padding="0">
-            <BlockStack gap="0">
-              {widgets.map((widget) => (
-                <FeatureRow
-                  key={widget.type}
-                  icon={widget.icon}
-                  title={widget.title}
-                  description={widget.description}
-                  isEnabled={false}
-                  disabled={true}
-                />
-              ))}
-            </BlockStack>
-          </Card>
+          {/* Each widget in its own card */}
+          {widgets.map((widget) => (
+            <Card key={widget.type} padding="0">
+              <FeatureRow
+                icon={widget.icon}
+                title={widget.title}
+                description={widget.description}
+                isEnabled={false}
+                disabled={true}
+                buttonLabel="Settings"
+              />
+            </Card>
+          ))}
         </BlockStack>
 
         {/* Shopify Flow Integration */}
