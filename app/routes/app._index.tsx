@@ -146,7 +146,8 @@ export default function AppHome() {
     setupSteps, 
     completedSteps, 
     totalSteps,
-    automationMeta 
+    automationMeta,
+    isConnected
   } = useLoaderData<typeof loader>();
   
   const [setupOpen, setSetupOpen] = useState(true);
@@ -408,6 +409,38 @@ export default function AppHome() {
             </div>
             <Button variant="secondary" url="/app/campaigns/new">Open Tool</Button>
           </div>
+        </Card>
+
+        {/* WhatsApp Connection Card */}
+        <Card>
+          <BlockStack gap="200">
+            <Text as="h3" variant="headingMd">WhatsApp Connection</Text>
+            <Text as="p" tone="subdued">
+              {isConnected ? 'Connected' : 'No account connected'}
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              By clicking <strong>Connect</strong>, you agree to accept WhatSend&apos;s terms and conditions.
+            </Text>
+            <div>
+              <Button url="/app/whatsapp" variant={isConnected ? "secondary" : "primary"}>
+                {isConnected ? 'Manage' : 'Connect'}
+              </Button>
+            </div>
+          </BlockStack>
+        </Card>
+
+        {/* Feedback Section */}
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h3" variant="headingMd">We&apos;d love to hear from you!</Text>
+            <Text as="p" tone="subdued">
+              Your feedback helps us improve and continue delivering the best experience possible. Let us know what you think and get a free surprise!
+            </Text>
+            <InlineStack gap="200">
+              <Button variant="secondary">👍 Good</Button>
+              <Button variant="secondary">👎 Bad</Button>
+            </InlineStack>
+          </BlockStack>
         </Card>
       </BlockStack>
     </Page>
