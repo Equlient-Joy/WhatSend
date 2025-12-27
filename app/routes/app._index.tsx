@@ -24,7 +24,6 @@ import {
   NoteIcon,
   ChatIcon,
   ProductIcon,
-  HomeIcon,
   WandIcon
 } from "@shopify/polaris-icons";
 import { useState } from "react";
@@ -101,9 +100,9 @@ function FeatureRow({
     <Box padding="400" borderBlockEndWidth="025" borderColor="border-secondary">
       <InlineStack align="space-between" blockAlign="center" wrap={false}>
         <InlineStack gap="400" blockAlign="start" wrap={false}>
-          <Box>
+          <div style={{ width: '20px', height: '20px', flexShrink: 0 }}>
             <Icon source={icon} tone="base" />
-          </Box>
+          </div>
           <BlockStack gap="100">
             <InlineStack gap="200" blockAlign="center">
               <Text as="span" variant="bodyMd" fontWeight="semibold">{title}</Text>
@@ -258,7 +257,7 @@ export default function AppHome() {
               Connect with your customers on WhatsApp and boost your sales with automated messaging workflows.
             </Text>
             <InlineStack gap="300">
-              <Button url="/app/plans" icon={HomeIcon}>Plans & Usage</Button>
+              <Button url="/app/plans">Plans & Usage</Button>
             </InlineStack>
           </BlockStack>
         </Card>
@@ -333,9 +332,9 @@ export default function AppHome() {
         <Card padding="400">
           <InlineStack align="space-between" blockAlign="center" wrap={false}>
             <InlineStack gap="400" blockAlign="start" wrap={false}>
-              <Box>
+              <div style={{ width: '20px', height: '20px', flexShrink: 0 }}>
                 <Icon source={WandIcon} tone="base" />
-              </Box>
+              </div>
               <BlockStack gap="100">
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="span" variant="bodyMd" fontWeight="semibold">Shopify Flow Integration</Text>
@@ -354,9 +353,9 @@ export default function AppHome() {
         <Card padding="400">
           <InlineStack align="space-between" blockAlign="center" wrap={false}>
             <InlineStack gap="400" blockAlign="start" wrap={false}>
-              <Box>
+              <div style={{ width: '20px', height: '20px', flexShrink: 0 }}>
                 <Icon source={ChatIcon} tone="base" />
-              </Box>
+              </div>
               <BlockStack gap="100">
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="span" variant="bodyMd" fontWeight="semibold">Bulk Message Sender</Text>
