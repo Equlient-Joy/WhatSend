@@ -13,7 +13,6 @@ import {
   Collapsible
 } from "@shopify/polaris";
 import { 
-  SettingsIcon, 
   OrderIcon,
   DeliveryIcon,
   AlertCircleIcon,
@@ -77,7 +76,7 @@ const automationIcons: Record<string, typeof OrderIcon> = {
   back_in_stock: ProductIcon,
 };
 
-// Feature row component matching WhatFlow reference design
+// Feature row component matching WhatFlow reference design exactly
 function FeatureRow({ 
   icon: IconComponent, 
   title, 
@@ -85,7 +84,8 @@ function FeatureRow({
   isEnabled, 
   isComingSoon = false,
   settingsUrl,
-  disabled = false 
+  disabled = false,
+  buttonLabel = "Edit" // Default to Edit for automations
 }: {
   icon: typeof OrderIcon;
   title: string;
@@ -94,51 +94,47 @@ function FeatureRow({
   isComingSoon?: boolean;
   settingsUrl?: string;
   disabled?: boolean;
+  buttonLabel?: string;
 }) {
   return (
     <div style={{ 
       padding: '16px 20px', 
       borderBottom: '1px solid #e1e3e5',
       display: 'flex',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
       gap: '16px'
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
-        {/* Green circular icon background */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
+        {/* Small inline icon */}
         <div style={{ 
-          width: '40px', 
-          height: '40px', 
-          borderRadius: '50%',
-          backgroundColor: '#25D366', // WhatsApp green
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0
+          width: '20px', 
+          height: '20px', 
+          flexShrink: 0,
+          marginTop: '2px',
+          color: '#5c5f62'
         }}>
-          <div style={{ width: '20px', height: '20px', color: 'white' }}>
-            <IconComponent />
-          </div>
+          <IconComponent />
         </div>
         
         {/* Title and description */}
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600, fontSize: '14px', color: '#202223' }}>{title}</span>
             {isComingSoon && <Badge tone="warning">Coming Soon</Badge>}
-            <Badge tone={isEnabled ? "success" : "new"}>{isEnabled ? 'On' : 'Off'}</Badge>
+            <Badge tone={isEnabled ? "success" : undefined}>{isEnabled ? 'On' : 'Off'}</Badge>
           </div>
-          <p style={{ fontSize: '13px', color: '#6d7175', margin: 0 }}>{description}</p>
+          <p style={{ fontSize: '13px', color: '#6d7175', margin: 0, lineHeight: '1.4' }}>{description}</p>
         </div>
       </div>
       
-      {/* Settings button */}
+      {/* Edit/Settings button - outlined style */}
       <Button 
         url={settingsUrl} 
         disabled={disabled}
-        icon={SettingsIcon}
+        variant="secondary"
       >
-        Settings
+        {buttonLabel}
       </Button>
     </div>
   );
@@ -353,36 +349,31 @@ export default function AppHome() {
           <div style={{ 
             padding: '16px 20px', 
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
             gap: '16px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
               <div style={{ 
-                width: '40px', 
-                height: '40px', 
-                borderRadius: '50%',
-                backgroundColor: '#25D366',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
+                width: '20px', 
+                height: '20px', 
+                flexShrink: 0,
+                marginTop: '2px',
+                color: '#5c5f62'
               }}>
-                <div style={{ width: '20px', height: '20px', color: 'white' }}>
-                  <WandIcon />
-                </div>
+                <WandIcon />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <span style={{ fontWeight: 600, fontSize: '14px', color: '#202223' }}>Shopify Flow Integration</span>
                   <Badge tone="success">Available</Badge>
                 </div>
-                <p style={{ fontSize: '13px', color: '#6d7175', margin: 0 }}>
+                <p style={{ fontSize: '13px', color: '#6d7175', margin: 0, lineHeight: '1.4' }}>
                   Automate your WhatsApp messaging with Shopify Flow. Create custom workflows to send messages based on various triggers.
                 </p>
               </div>
             </div>
-            <Button>View Guide</Button>
+            <Button variant="secondary">View Guide</Button>
           </div>
         </Card>
 
@@ -391,36 +382,31 @@ export default function AppHome() {
           <div style={{ 
             padding: '16px 20px', 
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
             gap: '16px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
               <div style={{ 
-                width: '40px', 
-                height: '40px', 
-                borderRadius: '50%',
-                backgroundColor: '#25D366',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
+                width: '20px', 
+                height: '20px', 
+                flexShrink: 0,
+                marginTop: '2px',
+                color: '#5c5f62'
               }}>
-                <div style={{ width: '20px', height: '20px', color: 'white' }}>
-                  <ChatIcon />
-                </div>
+                <ChatIcon />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <span style={{ fontWeight: 600, fontSize: '14px', color: '#202223' }}>Bulk Message Sender</span>
                   <Badge tone="warning">Use with Caution</Badge>
                 </div>
-                <p style={{ fontSize: '13px', color: '#6d7175', margin: 0 }}>
+                <p style={{ fontSize: '13px', color: '#6d7175', margin: 0, lineHeight: '1.4' }}>
                   Send WhatsApp messages to customer segments. Follow WhatsApp guidelines to avoid account suspension.
                 </p>
               </div>
             </div>
-            <Button url="/app/campaigns/new">Open Tool</Button>
+            <Button variant="secondary" url="/app/campaigns/new">Open Tool</Button>
           </div>
         </Card>
       </BlockStack>
