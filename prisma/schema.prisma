@@ -44,6 +44,7 @@ model Shop {
   whatsappSession   Json?     // Baileys session data for persistence
   lastConnectedAt   DateTime?
   connectionStatus  String    @default("disconnected") // connected, disconnected, error
+  qrCode            String?   @db.Text // Temporary QR code for WhatsApp connection
   testPhone         String?   // Test phone number for testing messages
   
   // Billing

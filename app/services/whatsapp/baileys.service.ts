@@ -9,6 +9,38 @@ import fs from 'fs';
 import path from 'path';
 import pino, { Logger } from 'pino';
 
+// Import database functions dynamically to avoid circular deps
+async function updateConnectionStatus(shopId: string, status: 'connecting' | 'awaiting_scan' | 'connected' | 'disconnected' | 'error', qrCode?: string | null) {
+  try {
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    
+    const updateData: Record<string, unknown> = { connectionStatus: status };
+    
+    if (qrCode !== undefined) {
+      updateData.qrCode = qrCode;
+    }
+    
+    if (status === 'connected') {
+      updateData.whatsappConnected = true;
+      updateData.lastConnectedAt = new Date();
+      updateData.qrCode = null;
+    } else if (status === 'disconnected' || status === 'error') {
+      updateData.whatsappConnected = false;
+      updateData.qrCode = null;
+    }
+    
+    await prisma.shop.update({
+      where: { shopifyDomain: shopId },
+      data: updateData
+    });
+    
+    await prisma.$disconnect();
+  } catch (error) {
+    console.error('Failed to update connection status:', error);
+  }
+}
+
 export class BaileysService {
   private socket: WASocket | null = null;
   private sessionsDir: string;
@@ -31,6 +63,7 @@ export class BaileysService {
   async initializeConnection(shopId: string): Promise<void> {
     try {
       this.logger.info(`Initializing connection for shop: ${shopId}`);
+      await updateConnectionStatus(shopId, 'connecting');
       
       const sessionPath = path.join(this.sessionsDir, shopId);
       
@@ -45,22 +78,21 @@ export class BaileysService {
       this.socket = makeWASocket({
         version,
         auth: state,
-        printQRInTerminal: true, // Useful for dev, can be turned off later
+        printQRInTerminal: true, // Useful for dev
         logger: this.logger,
         browser: ['WhatSend', 'Chrome', '10.0'],
         connectTimeoutMs: 60000,
         keepAliveIntervalMs: 30000,
-        // Optional: reduce logging noise
-        // logger: pino({ level: 'silent' }) 
       });
 
       // 4. Handle events
-      this.socket.ev.on('connection.update', (update: Partial<ConnectionState>) => {
+      this.socket.ev.on('connection.update', async (update: Partial<ConnectionState>) => {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
           this.logger.info(`QR Code received for shop ${shopId}`);
-          // In a real app, you'd emit this QR to the frontend via database or event bus
+          // Store QR in database for frontend to poll
+          await updateConnectionStatus(shopId, 'awaiting_scan', qr);
         }
 
         if (connection === 'close') {
@@ -72,11 +104,12 @@ export class BaileysService {
           if (shouldReconnect) {
             this.initializeConnection(shopId);
           } else {
-            this.logger.error(`Shop ${shopId} logged out. Clean up session needed.`);
-            // Implement cleanup logic here (delete session files, update DB)
+            this.logger.error(`Shop ${shopId} logged out. Marking as disconnected.`);
+            await updateConnectionStatus(shopId, 'disconnected');
           }
         } else if (connection === 'open') {
           this.logger.info(`✅ Connection opened successfully for shop ${shopId}`);
+          await updateConnectionStatus(shopId, 'connected');
         }
       });
 
@@ -86,6 +119,7 @@ export class BaileysService {
 
     } catch (error) {
       this.logger.error(`Failed to initialize connection for shop ${shopId}: ${error}`);
+      await updateConnectionStatus(shopId, 'error');
       throw error;
     }
   }

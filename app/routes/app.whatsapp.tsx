@@ -10,10 +10,12 @@ import {
   Banner,
   Box,
   InlineStack,
-  Badge
+  Badge,
+  Spinner
 } from "@shopify/polaris";
+import { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
-import { getShopConnectionStatus } from "../services/automation/automation.service";
+import prisma from "../db.server";
 import QRCode from "react-qr-code";
 
 // Server-only imports - these run only on the server
@@ -21,23 +23,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shopId = session.shop;
 
-  // Check connection status by checking if session folder exists
-  // This is a simple check - production would query database
-  const fs = await import("fs");
-  const path = await import("path");
-  const sessionDir = path.resolve(process.cwd(), 'whatsapp_sessions', shopId);
-  const isConnected = fs.existsSync(sessionDir) && fs.existsSync(path.join(sessionDir, 'creds.json'));
-  
-  // Get test phone from database
-  const connectionStatus = await getShopConnectionStatus(shopId);
-  const testPhone = connectionStatus?.testPhone || null;
+  try {
+    // Get connection status from database
+    const shop = await prisma.shop.findUnique({
+      where: { shopifyDomain: shopId },
+      select: {
+        whatsappConnected: true,
+        connectionStatus: true,
+        qrCode: true,
+        testPhone: true,
+        whatsappNumber: true
+      }
+    });
 
-  return data({
-    shop: shopId,
-    isConnected,
-    qrCode: null, // Initial load has no QR
-    testPhone
-  });
+    return data({
+      shop: shopId,
+      isConnected: shop?.whatsappConnected || false,
+      connectionStatus: shop?.connectionStatus || 'disconnected',
+      qrCode: shop?.qrCode || null,
+      testPhone: shop?.testPhone || null,
+      whatsappNumber: shop?.whatsappNumber || null
+    });
+  } catch (error) {
+    console.error('Error loading WhatsApp status:', error);
+    return data({
+      shop: shopId,
+      isConnected: false,
+      connectionStatus: 'error',
+      qrCode: null,
+      testPhone: null,
+      whatsappNumber: null
+    });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -47,29 +64,88 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = formData.get("intent");
 
   if (intent === "connect") {
-    // For now, return a mock QR code for UI development
-    // In production, this would initialize BaileysService and return real QR
-    const qrCode = "mock-qr-code-data-for-display"; 
-    return data({ qrCode, status: "generated" });
+    try {
+      // Update status to connecting
+      await prisma.shop.update({
+        where: { shopifyDomain: shopId },
+        data: { connectionStatus: 'connecting' }
+      });
+
+      // Dynamic import to avoid bundling issues in browser
+      const { BaileysService } = await import("../services/whatsapp/baileys.service");
+      const baileys = new BaileysService();
+      
+      // This starts the connection process - QR will be stored in DB
+      // The connection happens asynchronously
+      baileys.initializeConnection(shopId).catch(err => {
+        console.error('WhatsApp connection error:', err);
+      });
+
+      return data({ status: "connecting", message: "Connection started. QR code will appear shortly." });
+    } catch (error) {
+      console.error('Failed to start connection:', error);
+      return data({ status: "error", message: "Failed to start connection" }, { status: 500 });
+    }
   }
 
   if (intent === "disconnect") {
-    // Dynamic import to avoid bundling issues
-    const { BaileysService } = await import("../services/whatsapp/baileys.service");
-    const baileys = new BaileysService();
-    await baileys.logout(shopId);
-    return data({ status: "disconnected", isConnected: false });
+    try {
+      // Dynamic import to avoid bundling issues
+      const { BaileysService } = await import("../services/whatsapp/baileys.service");
+      const baileys = new BaileysService();
+      await baileys.logout(shopId);
+      
+      // Update database
+      await prisma.shop.update({
+        where: { shopifyDomain: shopId },
+        data: {
+          whatsappConnected: false,
+          connectionStatus: 'disconnected',
+          qrCode: null
+        }
+      });
+
+      return data({ status: "disconnected", isConnected: false });
+    } catch (error) {
+      console.error('Failed to disconnect:', error);
+      return data({ status: "error", message: "Failed to disconnect" }, { status: 500 });
+    }
+  }
+
+  if (intent === "refresh") {
+    // Just reload the page to get latest status
+    return data({ refreshed: true });
   }
 
   return null;
 };
 
 export default function WhatsAppConnectionPage() {
-  const { isConnected, qrCode: initialQr, testPhone } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<{ qrCode?: string; status?: string }>();
+  const { isConnected, connectionStatus, qrCode: initialQr, testPhone, whatsappNumber } = useLoaderData<typeof loader>();
+  const fetcher = useFetcher<{ status?: string; message?: string; refreshed?: boolean }>();
   
-  // Use state to track QR if returned from action
-  const qrCode = fetcher.data?.qrCode || initialQr;
+  // Poll for QR code updates when connecting
+  const [pollCount, setPollCount] = useState(0);
+
+  // Auto-refresh when connecting to get QR code
+  useEffect(() => {
+    if (connectionStatus === 'connecting' || connectionStatus === 'awaiting_scan') {
+      const interval = setInterval(() => {
+        fetcher.submit({ intent: 'refresh' }, { method: 'POST' });
+        setPollCount(c => c + 1);
+      }, 2000); // Poll every 2 seconds
+
+      // Stop polling after 60 seconds (30 attempts)
+      if (pollCount > 30) {
+        clearInterval(interval);
+      }
+
+      return () => clearInterval(interval);
+    }
+  }, [connectionStatus, pollCount, fetcher]);
+
+  const isProcessing = fetcher.state === "submitting";
+  const showQR = initialQr && !isConnected;
 
   return (
     <Page 
@@ -81,55 +157,78 @@ export default function WhatsAppConnectionPage() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Connection Status
-              </Text>
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h2" variant="headingMd">
+                  Connection Status
+                </Text>
+                <Badge tone={isConnected ? "success" : connectionStatus === 'connecting' ? "attention" : undefined}>
+                  {isConnected ? 'Connected' : connectionStatus === 'connecting' ? 'Connecting...' : 'Not Connected'}
+                </Badge>
+              </InlineStack>
               
-              {isConnected ? (
-                <Banner tone="success" title="Connected">
+              {isConnected && (
+                <Banner tone="success" title="WhatsApp Connected">
                   <p>Your WhatsApp account is successfully connected and ready to send messages.</p>
-                </Banner>
-              ) : (
-                <Banner tone="warning" title="Not Connected">
-                  <p>Connect your WhatsApp to start sending automated messages.</p>
+                  {whatsappNumber && <p><strong>Number:</strong> {whatsappNumber}</p>}
                 </Banner>
               )}
 
-              {!isConnected && !qrCode && (
-                <Box>
-                  <fetcher.Form method="post">
-                    <input type="hidden" name="intent" value="connect" />
-                    <Button submit variant="primary" loading={fetcher.state === "submitting"}>
-                      Connect WhatsApp
-                    </Button>
-                  </fetcher.Form>
-                </Box>
-              )}
-
-              {qrCode && !isConnected && (
+              {connectionStatus === 'connecting' && !showQR && (
                 <BlockStack gap="300">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Spinner size="small" />
+                    <Text as="p">Initializing connection... QR code will appear shortly.</Text>
+                  </InlineStack>
+                </BlockStack>
+              )}
+
+              {connectionStatus === 'awaiting_scan' && showQR && (
+                <BlockStack gap="300">
+                  <Banner tone="info" title="Scan QR Code">
+                    <p>Open WhatsApp on your phone → Settings → Linked Devices → Link a Device</p>
+                  </Banner>
+                  <Box paddingBlockStart="300" paddingBlockEnd="300">
+                    <div style={{ background: 'white', padding: '16px', display: 'inline-block', borderRadius: '8px' }}>
+                      <QRCode value={initialQr} size={256} />
+                    </div>
+                  </Box>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Open WhatsApp on your phone → Settings → Linked Devices → Link a Device
-                  </Text>
-                  <div style={{ background: 'white', padding: '16px', display: 'inline-block', borderRadius: '8px' }}>
-                     <QRCode value={qrCode} size={200} />
-                  </div>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Scan this QR code with your WhatsApp mobile app
+                    Scan this QR code with your WhatsApp mobile app to connect.
                   </Text>
                 </BlockStack>
               )}
 
-              {isConnected && (
-                <Box>
-                   <fetcher.Form method="post">
-                      <input type="hidden" name="intent" value="disconnect" />
-                      <Button submit tone="critical" loading={fetcher.state === "submitting"}>
-                        Disconnect WhatsApp
-                      </Button>
-                   </fetcher.Form>
-                </Box>
+              {connectionStatus === 'error' && (
+                <Banner tone="critical" title="Connection Error">
+                  <p>There was an error connecting to WhatsApp. Please try again.</p>
+                </Banner>
               )}
+
+              {!isConnected && connectionStatus === 'disconnected' && (
+                <Banner tone="warning" title="Not Connected">
+                  <p>Connect your WhatsApp to start sending automated messages to customers.</p>
+                </Banner>
+              )}
+
+              <Box>
+                {!isConnected && connectionStatus === 'disconnected' && (
+                  <fetcher.Form method="post">
+                    <input type="hidden" name="intent" value="connect" />
+                    <Button submit variant="primary" loading={isProcessing}>
+                      Connect WhatsApp
+                    </Button>
+                  </fetcher.Form>
+                )}
+
+                {isConnected && (
+                  <fetcher.Form method="post">
+                    <input type="hidden" name="intent" value="disconnect" />
+                    <Button submit tone="critical" loading={isProcessing}>
+                      Disconnect WhatsApp
+                    </Button>
+                  </fetcher.Form>
+                )}
+              </Box>
             </BlockStack>
           </Card>
         </Layout.Section>
@@ -178,6 +277,7 @@ export default function WhatsAppConnectionPage() {
                 <Text as="p" variant="bodySm">• Your phone has an active internet connection</Text>
                 <Text as="p" variant="bodySm">• WhatsApp is updated to the latest version</Text>
                 <Text as="p" variant="bodySm">• You&apos;re using WhatsApp Business (recommended)</Text>
+                <Text as="p" variant="bodySm">• The QR code hasn&apos;t expired (refresh if needed)</Text>
               </BlockStack>
             </BlockStack>
           </Card>
