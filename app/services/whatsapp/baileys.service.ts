@@ -1,15 +1,108 @@
 import makeWASocket, {
   DisconnectReason,
-  useMultiFileAuthState,
   fetchLatestBaileysVersion,
   ConnectionState,
-  WASocket
+  WASocket,
+  AuthenticationCreds,
+  SignalDataTypeMap,
+  initAuthCreds,
+  proto,
+  BufferJSON
 } from '@whiskeysockets/baileys';
-import fs from 'fs';
-import path from 'path';
 import pino, { Logger } from 'pino';
 
-// Import database functions dynamically to avoid circular deps
+// Database auth state interface
+interface DatabaseAuthState {
+  creds: AuthenticationCreds;
+  keys: {
+    get: <T extends keyof SignalDataTypeMap>(type: T, ids: string[]) => Promise<{ [id: string]: SignalDataTypeMap[T] | undefined }>;
+    set: (data: { [type: string]: { [id: string]: unknown } }) => Promise<void>;
+  };
+  saveCreds: () => Promise<void>;
+}
+
+/**
+ * Custom auth state that stores everything in the database
+ */
+async function useDatabaseAuthState(shopId: string): Promise<DatabaseAuthState> {
+  const { PrismaClient } = await import('@prisma/client');
+  const prisma = new PrismaClient();
+
+  // Load existing session from database
+  const shop = await prisma.shop.findUnique({
+    where: { shopifyDomain: shopId },
+    select: { whatsappSession: true }
+  });
+
+  let sessionData: { creds?: AuthenticationCreds; keys?: Record<string, unknown> } = {};
+  
+  if (shop?.whatsappSession && typeof shop.whatsappSession === 'object') {
+    try {
+      // Parse session data from database JSON
+      sessionData = JSON.parse(JSON.stringify(shop.whatsappSession, BufferJSON.replacer));
+      // Deserialize with BufferJSON
+      sessionData = JSON.parse(JSON.stringify(sessionData), BufferJSON.reviver);
+    } catch (err) {
+      console.error('Failed to parse session data:', err);
+      sessionData = {};
+    }
+  }
+
+  // Initialize creds
+  const creds: AuthenticationCreds = sessionData.creds || initAuthCreds();
+  const keys: Record<string, Record<string, unknown>> = (sessionData.keys as Record<string, Record<string, unknown>>) || {};
+
+  // Save function
+  const saveToDatabase = async () => {
+    try {
+      const dataToSave = JSON.parse(JSON.stringify({ creds, keys }, BufferJSON.replacer));
+      await prisma.shop.update({
+        where: { shopifyDomain: shopId },
+        data: { whatsappSession: dataToSave }
+      });
+    } catch (err) {
+      console.error('Failed to save session to database:', err);
+    }
+  };
+
+  return {
+    creds,
+    keys: {
+      get: async (type, ids) => {
+        const data: { [id: string]: unknown } = {};
+        for (const id of ids) {
+          const key = `${type}-${id}`;
+          const value = keys[type]?.[id];
+          if (value) {
+            data[id] = value;
+          }
+        }
+        return data as { [id: string]: SignalDataTypeMap[typeof type] };
+      },
+      set: async (newData) => {
+        for (const type in newData) {
+          if (!keys[type]) {
+            keys[type] = {};
+          }
+          for (const id in newData[type]) {
+            const value = newData[type][id];
+            if (value === null || value === undefined) {
+              delete keys[type][id];
+            } else {
+              keys[type][id] = value;
+            }
+          }
+        }
+        await saveToDatabase();
+      }
+    },
+    saveCreds: async () => {
+      await saveToDatabase();
+    }
+  };
+}
+
+// Update connection status in database
 async function updateConnectionStatus(shopId: string, status: 'connecting' | 'awaiting_scan' | 'connected' | 'disconnected' | 'error', qrCode?: string | null) {
   try {
     const { PrismaClient } = await import('@prisma/client');
@@ -43,32 +136,23 @@ async function updateConnectionStatus(shopId: string, status: 'connecting' | 'aw
 
 export class BaileysService {
   private socket: WASocket | null = null;
-  private sessionsDir: string;
   private logger: Logger;
 
   constructor() {
-    this.sessionsDir = path.resolve(process.cwd(), 'whatsapp_sessions');
     this.logger = pino({ level: 'info' });
-    
-    // Ensure session directory exists
-    if (!fs.existsSync(this.sessionsDir)) {
-      fs.mkdirSync(this.sessionsDir, { recursive: true });
-    }
   }
 
   /**
    * Initialize WhatsApp connection for a specific shop
-   * @param shopId The unique identifier for the shop (used as session folder name)
+   * Uses database for session persistence instead of filesystem
    */
   async initializeConnection(shopId: string): Promise<void> {
     try {
       this.logger.info(`Initializing connection for shop: ${shopId}`);
       await updateConnectionStatus(shopId, 'connecting');
       
-      const sessionPath = path.join(this.sessionsDir, shopId);
-      
-      // 1. Get auth state
-      const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+      // 1. Get auth state from database
+      const { creds, keys, saveCreds } = await useDatabaseAuthState(shopId);
       
       // 2. Get latest version
       const { version, isLatest } = await fetchLatestBaileysVersion();
@@ -77,8 +161,8 @@ export class BaileysService {
       // 3. Create socket
       this.socket = makeWASocket({
         version,
-        auth: state,
-        printQRInTerminal: true, // Useful for dev
+        auth: { creds, keys },
+        printQRInTerminal: true,
         logger: this.logger,
         browser: ['WhatSend', 'Chrome', '10.0'],
         connectTimeoutMs: 60000,
@@ -99,13 +183,15 @@ export class BaileysService {
           const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output?.statusCode;
           const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
           
-          this.logger.warn(`Connection closed for shop ${shopId} due to ${lastDisconnect?.error}. Reconnecting: ${shouldReconnect}`);
+          this.logger.warn(`Connection closed for shop ${shopId}. Reconnecting: ${shouldReconnect}`);
           
           if (shouldReconnect) {
-            this.initializeConnection(shopId);
+            setTimeout(() => this.initializeConnection(shopId), 3000);
           } else {
             this.logger.error(`Shop ${shopId} logged out. Marking as disconnected.`);
             await updateConnectionStatus(shopId, 'disconnected');
+            // Clear session on logout
+            await this.clearSession(shopId);
           }
         } else if (connection === 'open') {
           this.logger.info(`✅ Connection opened successfully for shop ${shopId}`);
@@ -115,12 +201,33 @@ export class BaileysService {
 
       this.socket.ev.on('creds.update', async () => {
         await saveCreds();
+        this.logger.info(`Credentials saved to database for shop ${shopId}`);
       });
 
     } catch (error) {
       this.logger.error(`Failed to initialize connection for shop ${shopId}: ${error}`);
       await updateConnectionStatus(shopId, 'error');
       throw error;
+    }
+  }
+
+  /**
+   * Clear session from database
+   */
+  private async clearSession(shopId: string): Promise<void> {
+    try {
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+      
+      await prisma.shop.update({
+        where: { shopifyDomain: shopId },
+        data: { whatsappSession: null }
+      });
+      
+      await prisma.$disconnect();
+      this.logger.info(`Session cleared for shop ${shopId}`);
+    } catch (error) {
+      this.logger.error(`Failed to clear session for shop ${shopId}:`, error);
     }
   }
 
@@ -181,11 +288,8 @@ export class BaileysService {
       this.socket = null;
     }
     
-    // In a real implementation, you might want to delete the session folder here
-    const sessionPath = path.join(this.sessionsDir, shopId);
-    if (fs.existsSync(sessionPath)) {
-      fs.rmSync(sessionPath, { recursive: true, force: true });
-    }
+    // Clear session from database
+    await this.clearSession(shopId);
     
     this.logger.info(`Logged out shop ${shopId}`);
   }
