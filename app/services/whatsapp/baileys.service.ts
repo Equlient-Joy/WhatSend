@@ -4,29 +4,32 @@ import makeWASocket, {
   ConnectionState,
   WASocket,
   AuthenticationCreds,
+  AuthenticationState,
   SignalDataTypeMap,
   initAuthCreds,
-  proto,
   BufferJSON
 } from '@whiskeysockets/baileys';
 import pino, { Logger } from 'pino';
+import { Prisma, PrismaClient } from '@prisma/client';
 
-// Database auth state interface
-interface DatabaseAuthState {
-  creds: AuthenticationCreds;
-  keys: {
-    get: <T extends keyof SignalDataTypeMap>(type: T, ids: string[]) => Promise<{ [id: string]: SignalDataTypeMap[T] | undefined }>;
-    set: (data: { [type: string]: { [id: string]: unknown } }) => Promise<void>;
-  };
-  saveCreds: () => Promise<void>;
+// Singleton prisma client
+let prismaInstance: PrismaClient | null = null;
+
+function getPrisma(): PrismaClient {
+  if (!prismaInstance) {
+    prismaInstance = new PrismaClient();
+  }
+  return prismaInstance;
 }
 
 /**
  * Custom auth state that stores everything in the database
  */
-async function useDatabaseAuthState(shopId: string): Promise<DatabaseAuthState> {
-  const { PrismaClient } = await import('@prisma/client');
-  const prisma = new PrismaClient();
+async function useDatabaseAuthState(shopId: string): Promise<{
+  state: AuthenticationState;
+  saveCreds: () => Promise<void>;
+}> {
+  const prisma = getPrisma();
 
   // Load existing session from database
   const shop = await prisma.shop.findUnique({
@@ -34,28 +37,34 @@ async function useDatabaseAuthState(shopId: string): Promise<DatabaseAuthState> 
     select: { whatsappSession: true }
   });
 
-  let sessionData: { creds?: AuthenticationCreds; keys?: Record<string, unknown> } = {};
+  let creds: AuthenticationCreds = initAuthCreds();
+  const keys: Record<string, Record<string, unknown>> = {};
   
   if (shop?.whatsappSession && typeof shop.whatsappSession === 'object') {
     try {
-      // Parse session data from database JSON
-      sessionData = JSON.parse(JSON.stringify(shop.whatsappSession, BufferJSON.replacer));
-      // Deserialize with BufferJSON
-      sessionData = JSON.parse(JSON.stringify(sessionData), BufferJSON.reviver);
+      // Parse session data - it's already an object from Prisma JSON
+      const sessionData = JSON.parse(
+        JSON.stringify(shop.whatsappSession),
+        BufferJSON.reviver
+      ) as { creds?: AuthenticationCreds; keys?: Record<string, Record<string, unknown>> };
+      
+      if (sessionData.creds) {
+        creds = sessionData.creds;
+      }
+      if (sessionData.keys) {
+        Object.assign(keys, sessionData.keys);
+      }
     } catch (err) {
       console.error('Failed to parse session data:', err);
-      sessionData = {};
     }
   }
-
-  // Initialize creds
-  const creds: AuthenticationCreds = sessionData.creds || initAuthCreds();
-  const keys: Record<string, Record<string, unknown>> = (sessionData.keys as Record<string, Record<string, unknown>>) || {};
 
   // Save function
   const saveToDatabase = async () => {
     try {
-      const dataToSave = JSON.parse(JSON.stringify({ creds, keys }, BufferJSON.replacer));
+      const dataToSave = JSON.parse(
+        JSON.stringify({ creds, keys }, BufferJSON.replacer)
+      );
       await prisma.shop.update({
         where: { shopifyDomain: shopId },
         data: { whatsappSession: dataToSave }
@@ -66,49 +75,58 @@ async function useDatabaseAuthState(shopId: string): Promise<DatabaseAuthState> 
   };
 
   return {
-    creds,
-    keys: {
-      get: async (type, ids) => {
-        const data: { [id: string]: unknown } = {};
-        for (const id of ids) {
-          const key = `${type}-${id}`;
-          const value = keys[type]?.[id];
-          if (value) {
-            data[id] = value;
-          }
-        }
-        return data as { [id: string]: SignalDataTypeMap[typeof type] };
-      },
-      set: async (newData) => {
-        for (const type in newData) {
-          if (!keys[type]) {
-            keys[type] = {};
-          }
-          for (const id in newData[type]) {
-            const value = newData[type][id];
-            if (value === null || value === undefined) {
-              delete keys[type][id];
-            } else {
-              keys[type][id] = value;
+    state: {
+      creds,
+      keys: {
+        get: async <T extends keyof SignalDataTypeMap>(type: T, ids: string[]) => {
+          const data: { [id: string]: SignalDataTypeMap[T] } = {};
+          const typeData = keys[type];
+          if (typeData) {
+            for (const id of ids) {
+              const value = typeData[id];
+              if (value !== undefined) {
+                data[id] = value as SignalDataTypeMap[T];
+              }
             }
           }
+          return data;
+        },
+        set: async (data: { [T in keyof SignalDataTypeMap]?: { [id: string]: SignalDataTypeMap[T] | null } }) => {
+          for (const type in data) {
+            const typeKey = type as keyof SignalDataTypeMap;
+            if (!keys[typeKey]) {
+              keys[typeKey] = {};
+            }
+            const typeData = data[typeKey];
+            if (typeData) {
+              for (const id in typeData) {
+                const value = typeData[id];
+                if (value === null || value === undefined) {
+                  delete keys[typeKey][id];
+                } else {
+                  keys[typeKey][id] = value;
+                }
+              }
+            }
+          }
+          await saveToDatabase();
         }
-        await saveToDatabase();
       }
     },
-    saveCreds: async () => {
-      await saveToDatabase();
-    }
+    saveCreds: saveToDatabase
   };
 }
 
 // Update connection status in database
-async function updateConnectionStatus(shopId: string, status: 'connecting' | 'awaiting_scan' | 'connected' | 'disconnected' | 'error', qrCode?: string | null) {
+async function updateConnectionStatus(
+  shopId: string, 
+  status: 'connecting' | 'awaiting_scan' | 'connected' | 'disconnected' | 'error', 
+  qrCode?: string | null
+) {
   try {
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
+    const prisma = getPrisma();
     
-    const updateData: Record<string, unknown> = { connectionStatus: status };
+    const updateData: Prisma.ShopUpdateInput = { connectionStatus: status };
     
     if (qrCode !== undefined) {
       updateData.qrCode = qrCode;
@@ -127,8 +145,6 @@ async function updateConnectionStatus(shopId: string, status: 'connecting' | 'aw
       where: { shopifyDomain: shopId },
       data: updateData
     });
-    
-    await prisma.$disconnect();
   } catch (error) {
     console.error('Failed to update connection status:', error);
   }
@@ -152,16 +168,16 @@ export class BaileysService {
       await updateConnectionStatus(shopId, 'connecting');
       
       // 1. Get auth state from database
-      const { creds, keys, saveCreds } = await useDatabaseAuthState(shopId);
+      const { state, saveCreds } = await useDatabaseAuthState(shopId);
       
       // 2. Get latest version
       const { version, isLatest } = await fetchLatestBaileysVersion();
       this.logger.info(`Using Baileys version ${version.join('.')}, isLatest: ${isLatest}`);
 
-      // 3. Create socket
+      // 3. Create socket with database-backed auth
       this.socket = makeWASocket({
         version,
-        auth: { creds, keys },
+        auth: state,
         printQRInTerminal: true,
         logger: this.logger,
         browser: ['WhatSend', 'Chrome', '10.0'],
@@ -175,7 +191,6 @@ export class BaileysService {
 
         if (qr) {
           this.logger.info(`QR Code received for shop ${shopId}`);
-          // Store QR in database for frontend to poll
           await updateConnectionStatus(shopId, 'awaiting_scan', qr);
         }
 
@@ -190,7 +205,6 @@ export class BaileysService {
           } else {
             this.logger.error(`Shop ${shopId} logged out. Marking as disconnected.`);
             await updateConnectionStatus(shopId, 'disconnected');
-            // Clear session on logout
             await this.clearSession(shopId);
           }
         } else if (connection === 'open') {
@@ -216,15 +230,13 @@ export class BaileysService {
    */
   private async clearSession(shopId: string): Promise<void> {
     try {
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const prisma = getPrisma();
       
       await prisma.shop.update({
         where: { shopifyDomain: shopId },
-        data: { whatsappSession: null }
+        data: { whatsappSession: Prisma.JsonNull }
       });
       
-      await prisma.$disconnect();
       this.logger.info(`Session cleared for shop ${shopId}`);
     } catch (error) {
       this.logger.error(`Failed to clear session for shop ${shopId}:`, error);
@@ -256,7 +268,6 @@ export class BaileysService {
     const remoteJid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
 
     try {
-      // Fetch the image from URL
       const response = await fetch(imageUrl);
       if (!response.ok) {
         throw new Error(`Failed to fetch image: ${response.statusText}`);
@@ -264,7 +275,6 @@ export class BaileysService {
       
       const imageBuffer = Buffer.from(await response.arrayBuffer());
       
-      // Send image with caption
       await this.socket.sendMessage(remoteJid, {
         image: imageBuffer,
         caption: caption
@@ -273,7 +283,6 @@ export class BaileysService {
       this.logger.info(`Image message sent to ${to}`);
     } catch (error) {
       this.logger.error(`Failed to send image message: ${error}`);
-      // Fallback to text-only message
       this.logger.info('Falling back to text-only message');
       await this.socket.sendMessage(remoteJid, { text: caption });
     }
@@ -288,7 +297,6 @@ export class BaileysService {
       this.socket = null;
     }
     
-    // Clear session from database
     await this.clearSession(shopId);
     
     this.logger.info(`Logged out shop ${shopId}`);
