@@ -1,6 +1,6 @@
 import { Page, Layout, Card, BlockStack, Text, Button, Grid, Box, Badge, TextField, Banner, InlineStack, Divider } from "@shopify/polaris";
 import { useState } from "react";
-import { useFetcher, data, redirect, useLoaderData } from "react-router";
+import { useFetcher, data, redirect, useLoaderData, Form } from "react-router";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { redeemPromoCode, syncSubscriptionStatus } from "../services/billing/billing.service";
@@ -237,13 +237,13 @@ export default function PlansPage() {
                       <PlanFeature>Auto-upgrade to Growth if exceeded</PlanFeature>
                     </BlockStack>
 
-                    <fetcher.Form method="post">
+                    <Form method="post">
                       <input type="hidden" name="intent" value="subscribe" />
                       <input type="hidden" name="plan" value="starter" />
-                      <Button submit fullWidth loading={isSubmitting && fetcher.formData?.get("plan") === "starter"}>
+                      <Button submit fullWidth>
                         Subscribe
                       </Button>
-                    </fetcher.Form>
+                    </Form>
                   </BlockStack>
                 </Card>
               </Grid.Cell>
@@ -284,13 +284,13 @@ export default function PlansPage() {
                         <PlanFeature>Auto-upgrade to Pro if exceeded</PlanFeature>
                       </BlockStack>
 
-                      <fetcher.Form method="post">
+                      <Form method="post">
                         <input type="hidden" name="intent" value="subscribe" />
                         <input type="hidden" name="plan" value="growth" />
-                        <Button submit variant="primary" fullWidth loading={isSubmitting && fetcher.formData?.get("plan") === "growth"}>
+                        <Button submit variant="primary" fullWidth>
                           Subscribe
                         </Button>
-                      </fetcher.Form>
+                      </Form>
                     </BlockStack>
                   </Card>
                 </div>
@@ -328,13 +328,13 @@ export default function PlansPage() {
                       <PlanFeature>API access</PlanFeature>
                     </BlockStack>
 
-                    <fetcher.Form method="post">
+                    <Form method="post">
                       <input type="hidden" name="intent" value="subscribe" />
                       <input type="hidden" name="plan" value="pro" />
-                      <Button submit fullWidth loading={isSubmitting && fetcher.formData?.get("plan") === "pro"}>
+                      <Button submit fullWidth>
                         Subscribe
                       </Button>
-                    </fetcher.Form>
+                    </Form>
                   </BlockStack>
                 </Card>
               </Grid.Cell>
