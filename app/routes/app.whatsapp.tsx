@@ -63,7 +63,10 @@ export default function WhatsAppConnectionPage() {
   const qrCode = fetcher.data?.qrCode || initialQr;
 
   return (
-    <Page title="WhatsApp Connection">
+    <Page 
+      title="WhatsApp Connection"
+      backAction={{ content: 'Back', url: '/app' }}
+    >
       <Layout>
         <Layout.Section>
           <Card>

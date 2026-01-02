@@ -11,7 +11,8 @@ import {
   TextField,
   Banner,
   Box,
-  Badge
+  Badge,
+  Divider
 } from "@shopify/polaris";
 import { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
@@ -91,26 +92,28 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
 export default function AutomationSettingsPage() {
   const { type, automation, meta, templateVariables } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<{ success?: boolean; message?: string }>();
+  const fetcher = useFetcher<{ success?: boolean; message?: string; toggled?: boolean }>();
   
   const [enabled, setEnabled] = useState(automation?.enabled || false);
   const [template, setTemplate] = useState(automation?.template || '');
   const [delayMinutes, setDelayMinutes] = useState(String(automation?.delayMinutes || 0));
-  const [adminPhone, setAdminPhone] = useState((automation?.conditions as any)?.adminPhone || '');
+  const [adminPhone, setAdminPhone] = useState(
+    (automation?.conditions as { adminPhone?: string } | null)?.adminPhone || ''
+  );
 
   const isLoading = fetcher.state === "submitting";
   const showDelay = type === 'abandoned_checkout' || type === 'draft_order_recovery';
   const showAdminPhone = type === 'admin_notification';
   const isComingSoon = meta.comingSoon;
 
+  // Update local state when toggle completes
   useEffect(() => {
-    if (fetcher.data?.success && fetcher.data?.message) {
-      // Show toast or notification
+    if (fetcher.data?.toggled) {
+      setEnabled(prev => !prev);
     }
-  }, [fetcher.data]);
+  }, [fetcher.data?.toggled]);
 
   const handleToggle = () => {
-    setEnabled(!enabled);
     fetcher.submit(
       { intent: "toggle" },
       { method: "POST" }
@@ -122,18 +125,7 @@ export default function AutomationSettingsPage() {
       backAction={{ content: 'Back', url: '/app' }}
       title={meta.title}
       titleMetadata={
-        <Badge tone={enabled ? "success" : "new"}>{enabled ? 'On' : 'Off'}</Badge>
-      }
-      primaryAction={
-        !isComingSoon ? (
-          <Button 
-            variant="primary"
-            onClick={handleToggle}
-            loading={isLoading && fetcher.formData?.get('intent') === 'toggle'}
-          >
-            {enabled ? 'Disable' : 'Enable'}
-          </Button>
-        ) : undefined
+        <Badge tone={enabled ? "success" : undefined}>{enabled ? 'On' : 'Off'}</Badge>
       }
     >
       <Layout>
@@ -143,11 +135,34 @@ export default function AutomationSettingsPage() {
               <p>This feature is coming soon! Stay tuned for updates.</p>
             </Banner>
           ) : (
-            <BlockStack gap="500">
+            <BlockStack gap="400">
+              {/* Status Card with Toggle */}
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">Automation Status</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {enabled 
+                          ? "This automation is currently active and sending messages." 
+                          : "This automation is currently disabled."}
+                      </Text>
+                    </BlockStack>
+                    <Button 
+                      variant={enabled ? "secondary" : "primary"}
+                      onClick={handleToggle}
+                      loading={isLoading && fetcher.formData?.get('intent') === 'toggle'}
+                    >
+                      {enabled ? 'Turn Off' : 'Turn On'}
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+
               {/* Description */}
               <Card>
                 <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">{meta.icon} About this Automation</Text>
+                  <Text as="h2" variant="headingMd">About this Automation</Text>
                   <Text as="p" variant="bodyMd" tone="subdued">{meta.description}</Text>
                 </BlockStack>
               </Card>
@@ -200,9 +215,11 @@ export default function AutomationSettingsPage() {
                       />
                     )}
 
-                    <Button submit variant="primary" loading={isLoading && fetcher.formData?.get('intent') === 'save'}>
-                      Save Settings
-                    </Button>
+                    <Box>
+                      <Button submit variant="primary" loading={isLoading && fetcher.formData?.get('intent') === 'save'}>
+                        Save Settings
+                      </Button>
+                    </Box>
                   </BlockStack>
                 </fetcher.Form>
               </Card>
@@ -215,31 +232,31 @@ export default function AutomationSettingsPage() {
                     Use these variables in your templates. They will be replaced with actual values when the message is sent.
                   </Text>
                   
-                  <Box paddingBlockStart="200">
-                    <BlockStack gap="200">
-                      {Object.entries(templateVariables).map(([variable, description]) => (
-                        <InlineStack key={variable} gap="300" align="start">
-                          <Box 
-                            background="bg-surface-secondary" 
-                            padding="100" 
-                            borderRadius="100"
-                            minWidth="180px"
-                          >
-                            <Text as="span" variant="bodySm" fontWeight="medium">
-                              <code>{variable}</code>
-                            </Text>
-                          </Box>
-                          <Text as="span" variant="bodySm" tone="subdued">{description}</Text>
-                        </InlineStack>
-                      ))}
-                    </BlockStack>
-                  </Box>
+                  <Divider />
+                  
+                  <BlockStack gap="200">
+                    {Object.entries(templateVariables).map(([variable, description]) => (
+                      <InlineStack key={variable} gap="300" blockAlign="center">
+                        <Box 
+                          background="bg-surface-secondary" 
+                          padding="100" 
+                          borderRadius="100"
+                          minWidth="180px"
+                        >
+                          <Text as="span" variant="bodySm" fontWeight="medium">
+                            <code>{variable}</code>
+                          </Text>
+                        </Box>
+                        <Text as="span" variant="bodySm" tone="subdued">{description}</Text>
+                      </InlineStack>
+                    ))}
+                  </BlockStack>
                 </BlockStack>
               </Card>
 
               {/* Success Banner */}
               {fetcher.data?.success && fetcher.data?.message && (
-                <Banner tone="success" onDismiss={() => {}}>
+                <Banner tone="success">
                   <p>{fetcher.data.message}</p>
                 </Banner>
               )}
