@@ -37,24 +37,55 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     throw new Response("Not Found", { status: 404 });
   }
 
-  // Ensure shop exists
-  await getOrCreateShop(shop);
+  try {
+    // Ensure shop exists
+    await getOrCreateShop(shop);
 
-  // Get automation settings
-  const automation = await getAutomation(shop, type);
-  const meta = AUTOMATION_META[type];
-  const testPhone = await getTestPhone(shop);
-  const connectionStatus = await getShopConnectionStatus(shop);
+    // Get automation settings
+    const automation = await getAutomation(shop, type);
+    const meta = AUTOMATION_META[type];
+    
+    // These may fail if testPhone column doesn't exist
+    let testPhone: string | null = null;
+    let isConnected = false;
+    
+    try {
+      testPhone = await getTestPhone(shop);
+      const connectionStatus = await getShopConnectionStatus(shop);
+      isConnected = connectionStatus?.whatsappConnected || false;
+    } catch (err) {
+      console.warn('Could not get testPhone/connectionStatus:', err);
+    }
 
-  return data({
-    shop,
-    type,
-    automation,
-    meta,
-    templateVariables: TEMPLATE_VARIABLES,
-    testPhone,
-    isConnected: connectionStatus?.whatsappConnected || false
-  });
+    return data({
+      shop,
+      type,
+      automation,
+      meta,
+      templateVariables: TEMPLATE_VARIABLES,
+      testPhone,
+      isConnected
+    });
+  } catch (error) {
+    console.error('Error in automation loader:', error);
+    // Return minimal data to prevent 500 error
+    const meta = AUTOMATION_META[type];
+    return data({
+      shop,
+      type,
+      automation: {
+        type,
+        enabled: false,
+        template: '',
+        delayMinutes: 0,
+        conditions: null
+      },
+      meta,
+      templateVariables: TEMPLATE_VARIABLES,
+      testPhone: null,
+      isConnected: false
+    });
+  }
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {

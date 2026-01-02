@@ -33,10 +33,25 @@ const PLANS = {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   
-  // Get current billing status and sync with Shopify
-  const billingStatus = await syncSubscriptionStatus(session.shop, admin.graphql);
-  
-  return data({ billingStatus });
+  try {
+    // Get current billing status and sync with Shopify
+    const billingStatus = await syncSubscriptionStatus(session.shop, admin.graphql);
+    return data({ billingStatus });
+  } catch (error) {
+    console.error('Error loading billing status:', error);
+    // Return default billing status if database query fails
+    return data({ 
+      billingStatus: {
+        hasActiveSubscription: false,
+        planType: 'free' as const,
+        messagesSent: 0,
+        messagesLimit: 0,
+        messagesRemaining: 0,
+        canSendMessages: false,
+        subscriptionId: null
+      }
+    });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
