@@ -32,40 +32,64 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  // Ensure shop and default automations exist
-  await getOrCreateShop(shop);
+  try {
+    // Ensure shop and default automations exist
+    await getOrCreateShop(shop);
 
-  // Get automations and connection status
-  const automations = await getAllAutomations(shop);
-  const connectionStatus = await getShopConnectionStatus(shop);
+    // Get automations and connection status
+    const automations = await getAllAutomations(shop);
+    const connectionStatus = await getShopConnectionStatus(shop);
 
-  // Calculate setup progress with actual billing status
-  const isConnected = connectionStatus?.whatsappConnected || false;
-  const hasEnabledAutomation = automations.some(a => a.enabled);
-  
-  // Check actual billing status from database
-  const billingStatus = await getShopBillingStatus(shop);
-  const hasPlan = billingStatus.hasActiveSubscription;
-  
-  const setupSteps = [
-    { id: 'plan', title: 'Choose a Plan', description: 'Select a subscription plan to start sending messages.', completed: hasPlan, action: 'Select Plan', link: '/app/plans' },
-    { id: 'connect', title: 'Connect WhatsApp', description: 'Link your WhatsApp number to send messages.', completed: isConnected, action: 'Connect', link: '/app/whatsapp' },
-    { id: 'automations', title: 'Enable Automations', description: 'Turn on message automations for your store.', completed: hasEnabledAutomation, action: 'Configure', link: '/app#automations' }
-  ];
-  
-  const completedSteps = setupSteps.filter(s => s.completed).length;
-  const testPhone = connectionStatus?.testPhone || '';
+    // Calculate setup progress with actual billing status
+    const isConnected = connectionStatus?.whatsappConnected || false;
+    const hasEnabledAutomation = automations.some(a => a.enabled);
+    
+    // Check actual billing status from database
+    let hasPlan = false;
+    try {
+      const billingStatus = await getShopBillingStatus(shop);
+      hasPlan = billingStatus.hasActiveSubscription;
+    } catch (billingError) {
+      console.warn('Could not get billing status:', billingError);
+    }
+    
+    const setupSteps = [
+      { id: 'plan', title: 'Choose a Plan', description: 'Select a subscription plan to start sending messages.', completed: hasPlan, action: 'Select Plan', link: '/app/plans' },
+      { id: 'connect', title: 'Connect WhatsApp', description: 'Link your WhatsApp number to send messages.', completed: isConnected, action: 'Connect', link: '/app/whatsapp' },
+      { id: 'automations', title: 'Enable Automations', description: 'Turn on message automations for your store.', completed: hasEnabledAutomation, action: 'Configure', link: '/app#automations' }
+    ];
+    
+    const completedSteps = setupSteps.filter(s => s.completed).length;
+    const testPhone = (connectionStatus as any)?.testPhone || '';
 
-  return data({
-    shop,
-    automations,
-    isConnected,
-    setupSteps,
-    completedSteps,
-    totalSteps: setupSteps.length,
-    automationMeta: AUTOMATION_META,
-    testPhone
-  });
+    return data({
+      shop,
+      automations,
+      isConnected,
+      setupSteps,
+      completedSteps,
+      totalSteps: setupSteps.length,
+      automationMeta: AUTOMATION_META,
+      testPhone
+    });
+  } catch (error) {
+    console.error('Error in app._index loader:', error);
+    // Return minimal data to prevent 500 error
+    return data({
+      shop,
+      automations: [],
+      isConnected: false,
+      setupSteps: [
+        { id: 'plan', title: 'Choose a Plan', description: 'Select a subscription plan.', completed: false, action: 'Select Plan', link: '/app/plans' },
+        { id: 'connect', title: 'Connect WhatsApp', description: 'Link your WhatsApp number.', completed: false, action: 'Connect', link: '/app/whatsapp' },
+        { id: 'automations', title: 'Enable Automations', description: 'Turn on automations.', completed: false, action: 'Configure', link: '/app#automations' }
+      ],
+      completedSteps: 0,
+      totalSteps: 3,
+      automationMeta: AUTOMATION_META,
+      testPhone: ''
+    });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
