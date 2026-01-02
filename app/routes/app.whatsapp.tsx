@@ -65,26 +65,60 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "connect") {
     try {
+      // First ensure shop exists in database
+      const shop = await prisma.shop.findUnique({
+        where: { shopifyDomain: shopId }
+      });
+
+      if (!shop) {
+        console.error('Shop not found in database:', shopId);
+        return data({ status: "error", message: "Shop not configured. Please visit the home page first." }, { status: 400 });
+      }
+
       // Update status to connecting
       await prisma.shop.update({
         where: { shopifyDomain: shopId },
-        data: { connectionStatus: 'connecting' }
+        data: { connectionStatus: 'connecting', qrCode: null }
       });
 
       // Dynamic import to avoid bundling issues in browser
-      const { BaileysService } = await import("../services/whatsapp/baileys.service");
-      const baileys = new BaileysService();
-      
-      // This starts the connection process - QR will be stored in DB
-      // The connection happens asynchronously
-      baileys.initializeConnection(shopId).catch(err => {
-        console.error('WhatsApp connection error:', err);
-      });
+      try {
+        const { BaileysService } = await import("../services/whatsapp/baileys.service");
+        const baileys = new BaileysService();
+        
+        // This starts the connection process - QR will be stored in DB
+        // The connection happens asynchronously
+        baileys.initializeConnection(shopId).catch(async (err) => {
+          console.error('WhatsApp connection error:', err);
+          // Update status to error
+          try {
+            await prisma.shop.update({
+              where: { shopifyDomain: shopId },
+              data: { connectionStatus: 'error', qrCode: null }
+            });
+          } catch (updateError) {
+            console.error('Failed to update error status:', updateError);
+          }
+        });
+      } catch (baileysError) {
+        console.error('Failed to initialize BaileysService:', baileysError);
+        await prisma.shop.update({
+          where: { shopifyDomain: shopId },
+          data: { 
+            connectionStatus: 'error', 
+            qrCode: null 
+          }
+        });
+        return data({ 
+          status: "error", 
+          message: "WhatsApp service unavailable. This may be a server configuration issue." 
+        }, { status: 500 });
+      }
 
       return data({ status: "connecting", message: "Connection started. QR code will appear shortly." });
     } catch (error) {
       console.error('Failed to start connection:', error);
-      return data({ status: "error", message: "Failed to start connection" }, { status: 500 });
+      return data({ status: "error", message: "Failed to start connection. Please try again." }, { status: 500 });
     }
   }
 
