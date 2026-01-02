@@ -1,6 +1,4 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
-
-import { useRouteError, isRouteErrorResponse } from "react-router";
+import { Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteError } from "react-router";
 
 export function ErrorBoundary() {
   const error = useRouteError();
@@ -31,6 +29,11 @@ export default function App() {
         <link
           rel="stylesheet"
           href="https://cdn.shopify.com/static/fonts/inter/v4/styles.css"
+        />
+        {/* Polaris CSS - Required for Shopify Polaris components to render correctly */}
+        <link
+          rel="stylesheet"
+          href="https://unpkg.com/@shopify/polaris@13.9.5/build/esm/styles.css"
         />
         <Meta />
         <Links />
