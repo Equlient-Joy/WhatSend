@@ -396,7 +396,7 @@ export default function AppHome() {
                 {isConnected ? '✅ Connected' : '❌ No account connected'}
               </Text>
               <Text as="p" variant="bodySm" tone="subdued">
-                By clicking <strong>Connect</strong>, you agree to accept WhatSend's terms and conditions.
+                By clicking <strong>Connect</strong>, you agree to accept WhatSend&apos;s terms and conditions.
               </Text>
               <Box>
                 <Button url="/app/whatsapp" variant={isConnected ? "secondary" : "primary"}>
@@ -411,7 +411,7 @@ export default function AppHome() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text as="h3" variant="headingMd">We'd love to hear from you!</Text>
+              <Text as="h3" variant="headingMd">We&apos;d love to hear from you!</Text>
               <Text as="p" tone="subdued">
                 Your feedback helps us improve and continue delivering the best experience possible.
               </Text>

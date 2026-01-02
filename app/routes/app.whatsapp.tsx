@@ -172,12 +172,12 @@ export default function WhatsAppConnectionPage() {
             <BlockStack gap="300">
               <Text as="h2" variant="headingMd">Need Help?</Text>
               <Text as="p" variant="bodySm" tone="subdued">
-                If you're having trouble connecting, make sure:
+                If you&apos;re having trouble connecting, make sure:
               </Text>
               <BlockStack gap="100">
                 <Text as="p" variant="bodySm">• Your phone has an active internet connection</Text>
                 <Text as="p" variant="bodySm">• WhatsApp is updated to the latest version</Text>
-                <Text as="p" variant="bodySm">• You're using WhatsApp Business (recommended)</Text>
+                <Text as="p" variant="bodySm">• You&apos;re using WhatsApp Business (recommended)</Text>
               </BlockStack>
             </BlockStack>
           </Card>
