@@ -283,37 +283,62 @@ export async function updateAutomation(
  * Get shop's WhatsApp connection status
  */
 export async function getShopConnectionStatus(shopDomain: string) {
-  const shop = await prisma.shop.findUnique({
-    where: { shopifyDomain: shopDomain },
-    select: {
-      whatsappConnected: true,
-      connectionStatus: true,
-      whatsappNumber: true,
-      lastConnectedAt: true,
-      testPhone: true
-    }
-  });
-
-  return shop;
+  try {
+    const shop = await prisma.shop.findUnique({
+      where: { shopifyDomain: shopDomain },
+      select: {
+        whatsappConnected: true,
+        connectionStatus: true,
+        whatsappNumber: true,
+        lastConnectedAt: true,
+        testPhone: true
+      }
+    });
+    return shop;
+  } catch (error) {
+    // Fallback if testPhone column doesn't exist yet (migration not run)
+    console.warn('getShopConnectionStatus fallback - testPhone may not exist:', error);
+    const shop = await prisma.shop.findUnique({
+      where: { shopifyDomain: shopDomain },
+      select: {
+        whatsappConnected: true,
+        connectionStatus: true,
+        whatsappNumber: true,
+        lastConnectedAt: true
+      }
+    });
+    return shop ? { ...shop, testPhone: null } : null;
+  }
 }
 
 /**
  * Get test phone number for a shop
  */
 export async function getTestPhone(shopDomain: string): Promise<string | null> {
-  const shop = await prisma.shop.findUnique({
-    where: { shopifyDomain: shopDomain },
-    select: { testPhone: true }
-  });
-  return shop?.testPhone || null;
+  try {
+    const shop = await prisma.shop.findUnique({
+      where: { shopifyDomain: shopDomain },
+      select: { testPhone: true }
+    });
+    return shop?.testPhone || null;
+  } catch (error) {
+    // Column may not exist yet
+    console.warn('getTestPhone fallback - testPhone may not exist:', error);
+    return null;
+  }
 }
 
 /**
  * Set test phone number for a shop
  */
 export async function setTestPhone(shopDomain: string, testPhone: string): Promise<void> {
-  await prisma.shop.update({
-    where: { shopifyDomain: shopDomain },
-    data: { testPhone }
-  });
+  try {
+    await prisma.shop.update({
+      where: { shopifyDomain: shopDomain },
+      data: { testPhone }
+    });
+  } catch (error) {
+    console.error('setTestPhone error - testPhone column may not exist:', error);
+    throw new Error('Unable to save test phone number. Please try again later.');
+  }
 }
