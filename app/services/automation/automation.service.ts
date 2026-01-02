@@ -289,9 +289,31 @@ export async function getShopConnectionStatus(shopDomain: string) {
       whatsappConnected: true,
       connectionStatus: true,
       whatsappNumber: true,
-      lastConnectedAt: true
+      lastConnectedAt: true,
+      testPhone: true
     }
   });
 
   return shop;
+}
+
+/**
+ * Get test phone number for a shop
+ */
+export async function getTestPhone(shopDomain: string): Promise<string | null> {
+  const shop = await prisma.shop.findUnique({
+    where: { shopifyDomain: shopDomain },
+    select: { testPhone: true }
+  });
+  return shop?.testPhone || null;
+}
+
+/**
+ * Set test phone number for a shop
+ */
+export async function setTestPhone(shopDomain: string, testPhone: string): Promise<void> {
+  await prisma.shop.update({
+    where: { shopifyDomain: shopDomain },
+    data: { testPhone }
+  });
 }

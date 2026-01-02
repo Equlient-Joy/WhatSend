@@ -1,7 +1,8 @@
-import { useLoaderData, data } from "react-router";
-import type { LoaderFunctionArgs } from "react-router";
+import { useLoaderData, useFetcher, data } from "react-router";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { 
   Page, 
+  Layout,
   Card, 
   Button, 
   Text, 
@@ -11,25 +12,20 @@ import {
   Box,
   ProgressBar,
   Collapsible,
-  Icon
+  TextField,
+  Banner
 } from "@shopify/polaris";
-import { 
-  OrderIcon,
-  DeliveryIcon,
-  AlertCircleIcon,
-  NotificationIcon,
-  PersonIcon,
-  CartIcon,
-  NoteIcon,
-  ChatIcon,
-  ProductIcon,
-  WandIcon,
-  SettingsIcon,
-  MenuHorizontalIcon
-} from "@shopify/polaris-icons";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { authenticate } from "../shopify.server";
-import { getAllAutomations, getShopConnectionStatus, getOrCreateShop, AUTOMATION_META, type AutomationType } from "../services/automation/automation.service";
+import { 
+  getAllAutomations, 
+  getShopConnectionStatus, 
+  getOrCreateShop, 
+  AUTOMATION_META, 
+  type AutomationType,
+  updateAutomation,
+  setTestPhone
+} from "../services/automation/automation.service";
 import { getShopBillingStatus } from "../services/billing/billing.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -58,6 +54,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   ];
   
   const completedSteps = setupSteps.filter(s => s.completed).length;
+  const testPhone = connectionStatus?.testPhone || '';
 
   return data({
     shop,
@@ -66,73 +63,108 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     setupSteps,
     completedSteps,
     totalSteps: setupSteps.length,
-    automationMeta: AUTOMATION_META
+    automationMeta: AUTOMATION_META,
+    testPhone
   });
 };
 
-// Icon mapping for automations
-const automationIcons: Record<string, typeof OrderIcon> = {
-  order_confirmation: OrderIcon,
-  order_fulfillment: DeliveryIcon,
-  order_cancellation: AlertCircleIcon,
-  order_notification: NotificationIcon,
-  admin_notification: PersonIcon,
-  abandoned_checkout: CartIcon,
-  draft_order_recovery: NoteIcon,
-  auto_replier: ChatIcon,
-  back_in_stock: ProductIcon,
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+
+  // Toggle automation on/off from home page
+  if (intent === "toggle") {
+    const automationType = formData.get("type") as AutomationType;
+    const currentEnabled = formData.get("enabled") === "true";
+    
+    await updateAutomation(shop, automationType, {
+      enabled: !currentEnabled
+    });
+    
+    return data({ success: true, toggled: true, type: automationType });
+  }
+
+  // Save test phone number
+  if (intent === "saveTestPhone") {
+    const testPhone = formData.get("testPhone") as string;
+    
+    if (!testPhone) {
+      return data({ error: "Please enter a phone number" }, { status: 400 });
+    }
+    
+    // Basic validation - must start with + and have numbers
+    if (!testPhone.match(/^\+\d{10,15}$/)) {
+      return data({ error: "Invalid phone format. Use: +1234567890" }, { status: 400 });
+    }
+    
+    await setTestPhone(shop, testPhone);
+    return data({ success: true, testPhoneSaved: true });
+  }
+
+  return data({ error: "Unknown action" }, { status: 400 });
 };
 
-// Feature row component matching WhatFlow reference design
-function FeatureRow({ 
-  icon: IconComponent, 
+// Automation row with inline toggle
+function AutomationRow({ 
+  type,
   title, 
   description, 
   isEnabled, 
   isComingSoon = false,
-  settingsUrl,
-  disabled = false,
-  buttonLabel = "Settings"
+  onToggle,
+  isLoading = false
 }: {
-  icon: typeof OrderIcon;
+  type: string;
   title: string;
   description: string;
   isEnabled: boolean;
   isComingSoon?: boolean;
-  settingsUrl?: string;
-  disabled?: boolean;
-  buttonLabel?: string;
+  onToggle: () => void;
+  isLoading?: boolean;
 }) {
   return (
-    <Box padding="400">
-      <InlineStack align="space-between" blockAlign="start" gap="400" wrap={false}>
-        <InlineStack gap="300" blockAlign="start" wrap={false}>
-          {/* Small inline icon */}
-          <Box>
-            <Icon source={IconComponent} tone="base" />
-          </Box>
-          
-          {/* Title and description */}
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center">
           <BlockStack gap="100">
-            <InlineStack gap="200" blockAlign="center" wrap>
+            <InlineStack gap="200" blockAlign="center">
               <Text as="span" variant="bodyMd" fontWeight="semibold">{title}</Text>
               {isComingSoon && <Badge tone="attention">Coming Soon</Badge>}
-              <Badge tone={isEnabled ? "success" : undefined}>{isEnabled ? 'On' : 'Off'}</Badge>
             </InlineStack>
             <Text as="p" variant="bodySm" tone="subdued">{description}</Text>
           </BlockStack>
+          
+          <InlineStack gap="200">
+            <Button
+              onClick={onToggle}
+              disabled={isComingSoon || isLoading}
+              loading={isLoading}
+              variant={isEnabled ? "secondary" : "primary"}
+              size="slim"
+            >
+              {isEnabled ? 'Turn Off' : 'Turn On'}
+            </Button>
+            <Button 
+              url={`/app/automation/${type}`}
+              disabled={isComingSoon}
+              variant="tertiary"
+              size="slim"
+            >
+              Edit
+            </Button>
+          </InlineStack>
         </InlineStack>
         
-        {/* Settings button */}
-        <Button 
-          url={settingsUrl} 
-          disabled={disabled}
-          variant="secondary"
-        >
-          {buttonLabel}
-        </Button>
-      </InlineStack>
-    </Box>
+        {/* Status indicator */}
+        <InlineStack gap="200">
+          <Badge tone={isEnabled ? "success" : undefined}>
+            {isEnabled ? 'Active' : 'Inactive'}
+          </Badge>
+        </InlineStack>
+      </BlockStack>
+    </Card>
   );
 }
 
@@ -143,10 +175,15 @@ export default function AppHome() {
     completedSteps, 
     totalSteps,
     automationMeta,
-    isConnected
+    isConnected,
+    testPhone: initialTestPhone
   } = useLoaderData<typeof loader>();
   
+  const fetcher = useFetcher<{ success?: boolean; toggled?: boolean; type?: string; testPhoneSaved?: boolean; error?: string }>();
+  
   const [setupOpen, setSetupOpen] = useState(true);
+  const [testPhone, setTestPhoneState] = useState(initialTestPhone);
+  const [togglingType, setTogglingType] = useState<string | null>(null);
 
   // Scroll to automations section when hash is present
   useEffect(() => {
@@ -158,7 +195,29 @@ export default function AppHome() {
     }
   }, []);
 
-  // Separate main automations from widgets/coming soon
+  // Update toggling state when fetcher completes
+  useEffect(() => {
+    if (fetcher.data?.toggled) {
+      setTogglingType(null);
+    }
+  }, [fetcher.data?.toggled]);
+
+  const handleToggle = useCallback((type: string, currentEnabled: boolean) => {
+    setTogglingType(type);
+    fetcher.submit(
+      { intent: "toggle", type, enabled: String(currentEnabled) },
+      { method: "POST" }
+    );
+  }, [fetcher]);
+
+  const handleSaveTestPhone = useCallback(() => {
+    fetcher.submit(
+      { intent: "saveTestPhone", testPhone },
+      { method: "POST" }
+    );
+  }, [fetcher, testPhone]);
+
+  // Separate main automations from coming soon
   const mainAutomations: AutomationType[] = [
     'order_confirmation',
     'order_fulfillment', 
@@ -174,253 +233,241 @@ export default function AppHome() {
     'back_in_stock'
   ];
 
-  const widgets = [
-    { type: 'chat_button', title: 'WhatsApp Chat Button', description: 'Add a customizable WhatsApp chat button to your storefront for instant customer support.', icon: ChatIcon },
-    { type: 'direct_order', title: 'WhatsApp Direct Order', description: 'Add a direct order button that allows customers to send their cart items via WhatsApp for quick ordering and checkout assistance.', icon: CartIcon },
-    { type: 'product_button', title: 'WhatsApp Product Page Button', description: 'Add WhatsApp buttons to product pages allowing customers to inquire about specific products directly.', icon: ProductIcon }
-  ];
-
   const getAutomationStatus = (type: string) => {
+    // Check if we just toggled this one
+    if (fetcher.data?.toggled && fetcher.data?.type === type) {
+      const automation = automations.find(a => a.type === type);
+      return !automation?.enabled; // Return opposite since it was toggled
+    }
     const automation = automations.find(a => a.type === type);
     return automation?.enabled || false;
   };
 
   const progressPercent = Math.round((completedSteps / totalSteps) * 100);
+  const isTogglingAny = fetcher.state === "submitting" && fetcher.formData?.get("intent") === "toggle";
+  const isSavingPhone = fetcher.state === "submitting" && fetcher.formData?.get("intent") === "saveTestPhone";
 
   return (
     <Page
-      title="WhatSend Home"
-      secondaryActions={[
-        { content: 'Plans', url: '/app/plans' }
-      ]}
+      title="WhatSend"
       primaryAction={
-        <Button variant="primary" url="/app/whatsapp">
+        <Button url="/app/whatsapp" variant="primary">
           Manage Connection
         </Button>
       }
+      secondaryActions={[
+        { content: 'Plans', url: '/app/plans' }
+      ]}
     >
-      <BlockStack gap="400">
-        {/* Setup Guide - Collapsible Card */}
-        <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="center">
-              <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">Setup Guide</Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Use this personalized guide to get your app up and running.
-                </Text>
-              </BlockStack>
-              <InlineStack gap="200">
+      <Layout>
+        {/* Setup Guide Section */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">Setup Guide</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Use this personalized guide to get your app up and running.
+                  </Text>
+                </BlockStack>
                 <Button 
-                  icon={MenuHorizontalIcon}
                   variant="tertiary" 
                   onClick={() => setSetupOpen(!setupOpen)}
-                  accessibilityLabel="Toggle setup guide"
-                />
+                >
+                  {setupOpen ? 'Hide' : 'Show'}
+                </Button>
               </InlineStack>
-            </InlineStack>
-            
-            {/* Progress indicator */}
-            <InlineStack gap="300" blockAlign="center">
-              <Text as="span" variant="bodySm" tone="subdued">{completedSteps} / {totalSteps} completed</Text>
-              <Box minWidth="200px">
-                <ProgressBar progress={progressPercent} size="small" tone="primary" />
-              </Box>
-            </InlineStack>
+              
+              {/* Progress indicator */}
+              <InlineStack gap="300" blockAlign="center">
+                <Text as="span" variant="bodySm" tone="subdued">{completedSteps} / {totalSteps} completed</Text>
+                <Box minWidth="200px">
+                  <ProgressBar progress={progressPercent} size="small" tone="primary" />
+                </Box>
+              </InlineStack>
 
-            <Collapsible open={setupOpen} id="setup-guide">
-              <BlockStack gap="400">
-                {setupSteps.map((step, index) => (
-                  <Box key={step.id} paddingBlockStart="200">
-                    <InlineStack gap="300" blockAlign="start" wrap={false}>
-                      {/* Step indicator circle */}
-                      <Box>
-                        <div style={{ 
-                          width: '24px', 
-                          height: '24px', 
-                          borderRadius: '50%', 
-                          backgroundColor: step.completed ? '#303030' : '#e4e5e7',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: step.completed ? 'white' : '#616161',
-                          fontSize: '12px',
-                          fontWeight: 500
-                        }}>
-                          {step.completed ? '✓' : index + 1}
-                        </div>
-                      </Box>
-                      <BlockStack gap="200">
-                        <Text as="span" variant="bodyMd" fontWeight="semibold">{step.title}</Text>
-                        <Text as="p" variant="bodySm" tone="subdued">{step.description}</Text>
-                        {!step.completed && (
-                          <Box>
-                            <Button size="slim" url={step.link} variant="primary">{step.action}</Button>
-                          </Box>
-                        )}
-                      </BlockStack>
-                    </InlineStack>
-                  </Box>
-                ))}
-              </BlockStack>
-            </Collapsible>
-          </BlockStack>
-        </Card>
+              <Collapsible open={setupOpen} id="setup-guide">
+                <BlockStack gap="400">
+                  {setupSteps.map((step, index) => (
+                    <Box key={step.id} paddingBlockStart="200">
+                      <InlineStack gap="300" blockAlign="start" wrap={false}>
+                        {/* Step indicator circle */}
+                        <Box>
+                          <div style={{ 
+                            width: '24px', 
+                            height: '24px', 
+                            borderRadius: '50%', 
+                            backgroundColor: step.completed ? '#303030' : '#e4e5e7',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: step.completed ? 'white' : '#616161',
+                            fontSize: '12px',
+                            fontWeight: 500
+                          }}>
+                            {step.completed ? '✓' : index + 1}
+                          </div>
+                        </Box>
+                        <BlockStack gap="200">
+                          <Text as="span" variant="bodyMd" fontWeight="semibold">{step.title}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">{step.description}</Text>
+                          {!step.completed && (
+                            <Box>
+                              <Button size="slim" url={step.link} variant="primary">{step.action}</Button>
+                            </Box>
+                          )}
+                        </BlockStack>
+                      </InlineStack>
+                    </Box>
+                  ))}
+                </BlockStack>
+              </Collapsible>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
 
-        {/* Welcome Card */}
-        <Card>
-          <BlockStack gap="300">
-            <Text as="h2" variant="headingLg">Welcome to WhatSend</Text>
-            <Text as="p" variant="bodyMd" tone="subdued">
-              Connect with your customers on WhatsApp and boost your sales with automated messaging workflows.
-            </Text>
-            <InlineStack gap="200">
-              <Button icon={SettingsIcon} url="/app/plans">Plans & Usage</Button>
-            </InlineStack>
-          </BlockStack>
-        </Card>
+        {/* Welcome Section */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingLg">Welcome to WhatSend</Text>
+              <Text as="p" variant="bodyMd" tone="subdued">
+                Connect with your customers on WhatsApp and boost your sales with automated messaging workflows.
+              </Text>
+              <InlineStack gap="200">
+                <Button url="/app/plans">Plans & Usage</Button>
+              </InlineStack>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
 
         {/* WhatsApp Automation Features */}
-        <Box id="automations">
-          <BlockStack gap="300">
-            <Text as="h2" variant="headingMd">WhatsApp Automation Features</Text>
-            
-            {/* Each automation in its own card */}
-            {mainAutomations.map((type) => {
-              const meta = automationMeta[type];
-              const isEnabled = getAutomationStatus(type);
-              const IconComponent = automationIcons[type] || OrderIcon;
+        <Layout.Section>
+          <Box id="automations">
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">WhatsApp Automation Features</Text>
               
-              return (
-                <Card key={type} padding="0">
-                  <FeatureRow
-                    icon={IconComponent}
+              {/* Main automations with inline toggles */}
+              {mainAutomations.map((type) => {
+                const meta = automationMeta[type];
+                const isEnabled = getAutomationStatus(type);
+                const isToggling = togglingType === type && isTogglingAny;
+                
+                return (
+                  <AutomationRow
+                    key={type}
+                    type={type}
                     title={meta.title}
                     description={meta.description}
                     isEnabled={isEnabled}
-                    settingsUrl={`/app/automation/${type}`}
+                    onToggle={() => handleToggle(type, isEnabled)}
+                    isLoading={isToggling}
                   />
-                </Card>
-              );
-            })}
+                );
+              })}
 
-            {/* Coming Soon Automations */}
-            {comingSoonAutomations.map((type) => {
-              const meta = automationMeta[type];
-              const IconComponent = automationIcons[type] || OrderIcon;
-              
-              return (
-                <Card key={type} padding="0">
-                  <FeatureRow
-                    icon={IconComponent}
+              {/* Coming Soon Automations */}
+              {comingSoonAutomations.map((type) => {
+                const meta = automationMeta[type];
+                
+                return (
+                  <AutomationRow
+                    key={type}
+                    type={type}
                     title={meta.title}
                     description={meta.description}
                     isEnabled={false}
                     isComingSoon={true}
-                    disabled={true}
+                    onToggle={() => {}}
                   />
-                </Card>
-              );
-            })}
-          </BlockStack>
-        </Box>
-
-        {/* WhatsApp Buttons & Widgets */}
-        <BlockStack gap="300">
-          <Text as="h2" variant="headingMd">WhatsApp Buttons & Widgets</Text>
-          
-          {/* Each widget in its own card */}
-          {widgets.map((widget) => (
-            <Card key={widget.type} padding="0">
-              <FeatureRow
-                icon={widget.icon}
-                title={widget.title}
-                description={widget.description}
-                isEnabled={false}
-                disabled={true}
-              />
-            </Card>
-          ))}
-        </BlockStack>
-
-        {/* Shopify Flow Integration */}
-        <Card padding="0">
-          <Box padding="400">
-            <InlineStack align="space-between" blockAlign="start" gap="400" wrap={false}>
-              <InlineStack gap="300" blockAlign="start" wrap={false}>
-                <Box>
-                  <Icon source={WandIcon} tone="base" />
-                </Box>
-                <BlockStack gap="100">
-                  <InlineStack gap="200" blockAlign="center">
-                    <Text as="span" variant="bodyMd" fontWeight="semibold">Shopify Flow Integration</Text>
-                    <Badge tone="success">Available</Badge>
-                  </InlineStack>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Automate your WhatsApp messaging with Shopify Flow. Create custom workflows to send messages based on various triggers.
-                  </Text>
-                </BlockStack>
-              </InlineStack>
-              <Button variant="secondary">View Guide</Button>
-            </InlineStack>
+                );
+              })}
+            </BlockStack>
           </Box>
-        </Card>
+        </Layout.Section>
 
-        {/* Bulk Message Sender */}
-        <Card padding="0">
-          <Box padding="400">
-            <InlineStack align="space-between" blockAlign="start" gap="400" wrap={false}>
-              <InlineStack gap="300" blockAlign="start" wrap={false}>
-                <Box>
-                  <Icon source={ChatIcon} tone="base" />
-                </Box>
-                <BlockStack gap="100">
-                  <InlineStack gap="200" blockAlign="center">
-                    <Text as="span" variant="bodyMd" fontWeight="semibold">Bulk Message Sender</Text>
-                    <Badge tone="attention">Use with Caution</Badge>
-                  </InlineStack>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Send WhatsApp messages to customer segments. Follow WhatsApp guidelines to avoid account suspension.
-                  </Text>
-                </BlockStack>
-              </InlineStack>
-              <Button variant="secondary" url="/app/campaigns/new">Open Tool</Button>
-            </InlineStack>
-          </Box>
-        </Card>
-
-        {/* WhatsApp Connection Card */}
-        <Card>
-          <BlockStack gap="200">
-            <Text as="h3" variant="headingMd">WhatsApp Connection</Text>
-            <Text as="p" tone="subdued">
-              {isConnected ? 'Connected' : 'No account connected'}
-            </Text>
-            <Text as="p" variant="bodySm" tone="subdued">
-              By clicking <strong>Connect</strong>, you agree to accept WhatSend&apos;s terms and conditions.
-            </Text>
-            <Box>
-              <Button url="/app/whatsapp" variant={isConnected ? "secondary" : "primary"}>
-                {isConnected ? 'Manage' : 'Connect'}
-              </Button>
-            </Box>
-          </BlockStack>
-        </Card>
+        {/* WhatsApp Connection Status */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h3" variant="headingMd">WhatsApp Connection</Text>
+              <Text as="p" tone="subdued">
+                {isConnected ? '✅ Connected' : '❌ No account connected'}
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                By clicking <strong>Connect</strong>, you agree to accept WhatSend's terms and conditions.
+              </Text>
+              <Box>
+                <Button url="/app/whatsapp" variant={isConnected ? "secondary" : "primary"}>
+                  {isConnected ? 'Manage' : 'Connect'}
+                </Button>
+              </Box>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
 
         {/* Feedback Section */}
-        <Card>
-          <BlockStack gap="300">
-            <Text as="h3" variant="headingMd">We&apos;d love to hear from you!</Text>
-            <Text as="p" tone="subdued">
-              Your feedback helps us improve and continue delivering the best experience possible. Let us know what you think and get a free surprise!
-            </Text>
-            <InlineStack gap="200">
-              <Button variant="secondary">👍 Good</Button>
-              <Button variant="secondary">👎 Bad</Button>
-            </InlineStack>
-          </BlockStack>
-        </Card>
-      </BlockStack>
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h3" variant="headingMd">We'd love to hear from you!</Text>
+              <Text as="p" tone="subdued">
+                Your feedback helps us improve and continue delivering the best experience possible.
+              </Text>
+              <InlineStack gap="200">
+                <Button variant="secondary">👍 Good</Button>
+                <Button variant="secondary">👎 Bad</Button>
+              </InlineStack>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+
+        {/* Test Phone Number Section */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="400">
+              <BlockStack gap="100">
+                <Text as="h3" variant="headingMd">Test WhatsApp Number</Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Add your phone number to test message templates before enabling automations.
+                </Text>
+              </BlockStack>
+              
+              {fetcher.data?.testPhoneSaved && (
+                <Banner tone="success" onDismiss={() => {}}>
+                  Test phone number saved successfully!
+                </Banner>
+              )}
+              
+              {fetcher.data?.error && (
+                <Banner tone="critical" onDismiss={() => {}}>
+                  {fetcher.data.error}
+                </Banner>
+              )}
+              
+              <TextField
+                label="Phone Number"
+                value={testPhone}
+                onChange={setTestPhoneState}
+                placeholder="+1234567890"
+                helpText="Include country code (e.g., +1 for US, +91 for India)"
+                autoComplete="tel"
+              />
+              
+              <Box>
+                <Button 
+                  onClick={handleSaveTestPhone} 
+                  loading={isSavingPhone}
+                  variant="primary"
+                >
+                  Save Test Number
+                </Button>
+              </Box>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+      </Layout>
     </Page>
   );
 }
