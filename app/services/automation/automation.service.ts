@@ -14,42 +14,50 @@ export type AutomationType =
 
 // Default templates for each automation type
 const DEFAULT_TEMPLATES: Record<AutomationType, string> = {
-  order_confirmation: `Hi {{customer_name}}! 🎉
+  order_confirmation: `Thank you for your order from {shopName}. This is a confirmation message.
 
-Your order #{{order_number}} has been confirmed!
+*Order Details:*
 
-Items: {{product_list}}
+Order ID: {orderId}
+Order Number: {orderNumber}
 
-Thank you for shopping with us!`,
+*Items:* {itemsXquantity}
+*Subtotal:* {subtotal}
 
-  order_fulfillment: `Great news, {{customer_name}}! 🚚
+*Address:* {address}
+*City:* {city}
 
-Your order #{{order_number}} has been shipped!
+Please confirm your order.`,
 
-{{#if tracking_number}}
-Tracking: {{tracking_number}}
-{{/if}}
-{{#if tracking_url}}
-Track here: {{tracking_url}}
-{{/if}}
+  order_fulfillment: `📦 Great news, *{shippingFirstName}*!
 
-Thank you for your patience!`,
+Your recent order from *{shopName}*, *#{orderNumber}*, has been carefully packed and is now on its way to you! 📦
 
-  order_cancellation: `Hi {{customer_name}},
+It's being shipped via *{carrier}* with tracking number *{trackingNumber}*.
 
-Your order #{{order_number}} has been cancelled as requested.
+You can easily follow its journey here:
+🔗 {trackingUrl}
 
-If you have any questions, please contact us.
+Your order included:
+* {itemsXquantity}
 
-Thank you.`,
+We appreciate your business! 😊`,
 
-  order_notification: `Hi {{customer_name}}! 📦
+  order_cancellation: `🚫 We regret to inform you, *{billingFirstName}*, that your order *#{orderNumber}* from *{shopName}* has been cancelled.
 
-We've received your order #{{order_number}}.
+If you have any questions regarding this cancellation, please do not hesitate to contact our support team. We apologize for any inconvenience this may cause.
 
-Items: {{product_list}}
+Your order details were:
+* {itemsXquantity}`,
 
-We'll keep you updated!`,
+  order_notification: `🎉 Wonderful!
+
+We've successfully received your order *#{orderNumber}* at *{shopName}*, *{firstName}*! Thank you for choosing us.
+
+We're now processing your order which includes:
+* {itemsXquantity}
+
+You'll receive another notification with tracking information as soon as your order ships. We're excited for you to receive your items! 😊`,
 
   admin_notification: `🔔 New Order Alert!
 
@@ -58,13 +66,9 @@ Customer: {{customer_name}}
 Total: {{order_total}}
 Items: {{product_list}}`,
 
-  abandoned_checkout: `Hi {{customer_name}}! 👋
-
-We noticed you left some items in your cart.
-
-Complete your purchase here: {{checkout_url}}
-
-Need help? Just reply to this message!`,
+  abandoned_checkout: `🛒 *Checkout Reminder!*
+Hi *{billingFirstName}*, you left items in your cart at *WhatFlow*!
+Complete your purchase: {recoveryLink}`,
 
   draft_order_recovery: `Hi {{customer_name}}!
 
@@ -81,6 +85,19 @@ Let us know if you need any help!`,
 {{product_name}} is back in stock!
 
 Get yours before it sells out again: {{product_url}}`
+};
+
+// Default delay settings for each automation type (in minutes)
+export const DEFAULT_DELAYS: Record<AutomationType, number> = {
+  order_confirmation: 0,
+  order_fulfillment: 0,
+  order_cancellation: 0,
+  order_notification: 0,
+  admin_notification: 0,
+  abandoned_checkout: 360, // 6 hours
+  draft_order_recovery: 0,
+  auto_replier: 0,
+  back_in_stock: 0
 };
 
 // Automation metadata for UI

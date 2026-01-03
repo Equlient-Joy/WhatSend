@@ -22,6 +22,7 @@ import {
   updateAutomation, 
   getOrCreateShop, 
   AUTOMATION_META, 
+  DEFAULT_DELAYS,
   type AutomationType,
   getTestPhone,
   getShopConnectionStatus
@@ -200,7 +201,7 @@ export default function AutomationSettingsPage() {
   
   const [enabled, setEnabled] = useState(automation?.enabled || false);
   const [template, setTemplate] = useState(automation?.template || '');
-  const [delayMinutes, setDelayMinutes] = useState(String(automation?.delayMinutes || 0));
+  const [delayMinutes, setDelayMinutes] = useState(String(automation?.delayMinutes ?? DEFAULT_DELAYS[type] ?? 0));
   const [adminPhone, setAdminPhone] = useState(
     (automation?.conditions as { adminPhone?: string } | null)?.adminPhone || ''
   );
@@ -209,9 +210,10 @@ export default function AutomationSettingsPage() {
   );
 
   const isLoading = fetcher.state === "submitting";
-  const showDelay = type === 'abandoned_checkout' || type === 'draft_order_recovery';
-  const showAdminPhone = type === 'admin_notification';
   const isComingSoon = meta.comingSoon;
+  // Show delay for all automations (user requested)
+  const showDelay = !isComingSoon;
+  const showAdminPhone = type === 'admin_notification';
   
   // Show product images option for customer-facing automations
   const showProductImages = type === 'order_confirmation' || type === 'order_fulfillment' || type === 'abandoned_checkout';
@@ -360,12 +362,41 @@ export default function AutomationSettingsPage() {
                 </Card>
               )}
 
+              {/* Delay Settings Card */}
+              {showDelay && (
+                <Card>
+                  <BlockStack gap="300">
+                    <Text as="h2" variant="headingMd">Delay</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {type === 'abandoned_checkout' 
+                        ? "Set the delay (in minutes) after a checkout is created before sending the first automated recovery message."
+                        : "Set the delay (in minutes) before the automated message is sent."}
+                    </Text>
+                    <TextField
+                      label="Delay"
+                      labelHidden
+                      type="number"
+                      value={delayMinutes}
+                      onChange={setDelayMinutes}
+                      name="delayMinutes"
+                      autoComplete="off"
+                      suffix="minutes"
+                      helpText={type === 'abandoned_checkout' 
+                        ? `Minimum delay before automated message is sent (30 minutes minimum). Default: ${DEFAULT_DELAYS.abandoned_checkout} minutes.` 
+                        : `Default: ${DEFAULT_DELAYS[type]} minutes. Set to 0 for immediate sending.`
+                      }
+                    />
+                  </BlockStack>
+                </Card>
+              )}
+
               {/* Settings Form */}
               <Card>
                 <fetcher.Form method="post">
                   <input type="hidden" name="intent" value="save" />
                   <input type="hidden" name="enabled" value={String(enabled)} />
                   <input type="hidden" name="sendProductImages" value={String(sendProductImages)} />
+                  <input type="hidden" name="delayMinutes" value={delayMinutes} />
                   
                   <BlockStack gap="400">
                     <Text as="h2" variant="headingMd">Message Template</Text>
@@ -379,22 +410,6 @@ export default function AutomationSettingsPage() {
                       name="template"
                       helpText="Use variables to personalize your messages."
                     />
-
-                    {/* Delay Settings */}
-                    {showDelay && (
-                      <TextField
-                        label="Delay (minutes)"
-                        type="number"
-                        value={delayMinutes}
-                        onChange={setDelayMinutes}
-                        name="delayMinutes"
-                        autoComplete="off"
-                        helpText={type === 'abandoned_checkout' 
-                          ? "How long to wait before sending abandoned cart message (recommended: 120 minutes)" 
-                          : "How long to wait before sending follow-up message"
-                        }
-                      />
-                    )}
 
                     {/* Admin Phone - for admin_notification only */}
                     {showAdminPhone && (
