@@ -10,6 +10,17 @@ module.exports = {
       },
     },
     {
+      name: "reconnect",
+      script: "./node_modules/.bin/tsx",
+      args: "workers/reconnect-sessions.ts",
+      env: {
+        NODE_ENV: "production",
+      },
+      // Restart if it crashes, but wait 30 seconds
+      restart_delay: 30000,
+      max_restarts: 3,
+    },
+    {
       name: "worker",
       script: "./node_modules/.bin/tsx",
       args: "workers/message-sender.ts",
