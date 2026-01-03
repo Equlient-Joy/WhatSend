@@ -1,16 +1,12 @@
 import prisma from "../../db.server";
+import { 
+  type AutomationType, 
+  DEFAULT_DELAYS, 
+  AUTOMATION_META 
+} from "./automation.constants";
 
-// Automation type definitions
-export type AutomationType =
-  | 'order_confirmation'
-  | 'order_fulfillment'
-  | 'order_cancellation'
-  | 'order_notification'
-  | 'admin_notification'
-  | 'abandoned_checkout'
-  | 'draft_order_recovery'
-  | 'auto_replier'
-  | 'back_in_stock';
+// Re-export for backwards compatibility
+export { type AutomationType, DEFAULT_DELAYS, AUTOMATION_META };
 
 // Default templates for each automation type
 const DEFAULT_TEMPLATES: Record<AutomationType, string> = {
@@ -85,75 +81,6 @@ Let us know if you need any help!`,
 {{product_name}} is back in stock!
 
 Get yours before it sells out again: {{product_url}}`
-};
-
-// Default delay settings for each automation type (in minutes)
-export const DEFAULT_DELAYS: Record<AutomationType, number> = {
-  order_confirmation: 0,
-  order_fulfillment: 0,
-  order_cancellation: 0,
-  order_notification: 0,
-  admin_notification: 0,
-  abandoned_checkout: 360, // 6 hours
-  draft_order_recovery: 0,
-  auto_replier: 0,
-  back_in_stock: 0
-};
-
-// Automation metadata for UI
-export const AUTOMATION_META: Record<AutomationType, { 
-  title: string; 
-  description: string; 
-  icon: string;
-  comingSoon?: boolean;
-}> = {
-  order_confirmation: {
-    title: 'Order Confirmation',
-    description: 'Configure how your customers confirm orders via WhatsApp. Set up custom messages and response options.',
-    icon: '📋'
-  },
-  order_fulfillment: {
-    title: 'Order Fulfillment',
-    description: 'Keep customers updated when their orders are being processed and shipped.',
-    icon: '📦'
-  },
-  order_cancellation: {
-    title: 'Order Cancellation',
-    description: 'Notify customers when their orders are cancelled and provide them with relevant information.',
-    icon: '❌'
-  },
-  order_notification: {
-    title: 'Order Notification',
-    description: 'Send simple notification messages to customers when orders are placed, without requiring confirmation.',
-    icon: '🔔'
-  },
-  admin_notification: {
-    title: 'Admin Notification',
-    description: 'Send order notifications to multiple admin WhatsApp numbers when new orders are placed.',
-    icon: '👤'
-  },
-  abandoned_checkout: {
-    title: 'Abandoned Checkout',
-    description: 'Recover lost sales by automatically reaching out to customers who abandon their shopping carts.',
-    icon: '🛒'
-  },
-  draft_order_recovery: {
-    title: 'Draft Order Recovery',
-    description: 'Follow up on draft orders with automated WhatsApp messages to convert them into completed orders.',
-    icon: '📝'
-  },
-  auto_replier: {
-    title: 'Auto Replier',
-    description: 'Set up automated WhatsApp replies to common customer questions using keywords or fixed phrases.',
-    icon: '💬',
-    comingSoon: true
-  },
-  back_in_stock: {
-    title: 'Back In Stock Alerts',
-    description: 'Automatically notify customers via WhatsApp when products are back in stock. Capture interest and boost sales.',
-    icon: '📢',
-    comingSoon: true
-  }
 };
 
 /**

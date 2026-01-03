@@ -20,12 +20,11 @@ import { authenticate } from "../shopify.server";
 import { 
   getAllAutomations, 
   getShopConnectionStatus, 
-  getOrCreateShop, 
-  AUTOMATION_META, 
-  type AutomationType,
+  getOrCreateShop,
   updateAutomation,
   setTestPhone
 } from "../services/automation/automation.service";
+import { AUTOMATION_META, type AutomationType } from "../services/automation/automation.constants";
 import { getShopBillingStatus } from "../services/billing/billing.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

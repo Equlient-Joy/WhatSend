@@ -20,13 +20,15 @@ import { authenticate } from "../shopify.server";
 import { 
   getAutomation, 
   updateAutomation, 
-  getOrCreateShop, 
-  AUTOMATION_META, 
-  DEFAULT_DELAYS,
-  type AutomationType,
+  getOrCreateShop,
   getTestPhone,
   getShopConnectionStatus
 } from "../services/automation/automation.service";
+import { 
+  type AutomationType,
+  DEFAULT_DELAYS,
+  AUTOMATION_META 
+} from "../services/automation/automation.constants";
 import { TEMPLATE_VARIABLES } from "../services/automation/template.service";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
