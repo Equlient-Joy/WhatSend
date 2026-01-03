@@ -1,7 +1,7 @@
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "823c4ac0ed0c9aa9aec7a44543fc782e"
-name = "WhatSend"
+client_id = "00144135abf984d4095b0180e21ca8e5"
+name = "WhatSender"
 application_url = "https://whatsend-lq9d.onrender.com"
 embedded = true
 
