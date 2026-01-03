@@ -25,7 +25,7 @@ function getPrisma(): PrismaClient {
 /**
  * Custom auth state that stores everything in the database
  */
-async function useDatabaseAuthState(shopId: string): Promise<{
+async function getDatabaseAuthState(shopId: string): Promise<{
   state: AuthenticationState;
   saveCreds: () => Promise<void>;
 }> {
@@ -168,7 +168,7 @@ export class BaileysService {
       await updateConnectionStatus(shopId, 'connecting');
       
       // 1. Get auth state from database
-      const { state, saveCreds } = await useDatabaseAuthState(shopId);
+      const { state, saveCreds } = await getDatabaseAuthState(shopId);
       
       // 2. Get latest version
       const { version, isLatest } = await fetchLatestBaileysVersion();
