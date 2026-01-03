@@ -111,18 +111,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Save test phone number
   if (intent === "saveTestPhone") {
-    const testPhone = formData.get("testPhone") as string;
+    const testPhoneInput = formData.get("testPhone") as string;
     
-    if (!testPhone) {
-      return data({ error: "Please enter a phone number" }, { status: 400 });
+    if (!testPhoneInput) {
+      return data({ error: "Please enter a 10-digit phone number" }, { status: 400 });
     }
     
-    // Basic validation - must start with + and have numbers
-    if (!testPhone.match(/^\+\d{10,15}$/)) {
-      return data({ error: "Invalid phone format. Use: +1234567890" }, { status: 400 });
+    // Remove any spaces, dashes, or existing country code
+    const cleanedPhone = testPhoneInput.replace(/[\s\-+]/g, '').replace(/^91/, '');
+    
+    // Validate: must be exactly 10 digits
+    if (!cleanedPhone.match(/^\d{10}$/)) {
+      return data({ error: "Please enter exactly 10 digits (e.g., 9876543210)" }, { status: 400 });
     }
     
-    await setTestPhone(shop, testPhone);
+    // Add India country code
+    const formattedPhone = `+91${cleanedPhone}`;
+    
+    await setTestPhone(shop, formattedPhone);
     return data({ success: true, testPhoneSaved: true });
   }
 
@@ -205,7 +211,10 @@ export default function AppHome() {
   const fetcher = useFetcher<{ success?: boolean; toggled?: boolean; type?: string; testPhoneSaved?: boolean; error?: string }>();
   
   const [setupOpen, setSetupOpen] = useState(true);
-  const [testPhone, setTestPhoneState] = useState(initialTestPhone);
+  // Strip +91 prefix from db value to show only 10 digits in input
+  const [testPhone, setTestPhoneState] = useState(
+    initialTestPhone?.replace(/^\+91/, '') || ''
+  );
   const [togglingType, setTogglingType] = useState<string | null>(null);
 
   // Scroll to automations section when hash is present
@@ -473,10 +482,12 @@ export default function AppHome() {
               <TextField
                 label="Phone Number"
                 value={testPhone}
-                onChange={setTestPhoneState}
-                placeholder="+1234567890"
-                helpText="Include country code (e.g., +1 for US, +91 for India)"
+                onChange={(value) => setTestPhoneState(value.replace(/[^0-9]/g, '').slice(0, 10))}
+                placeholder="9876543210"
+                helpText="Enter 10-digit Indian mobile number (without +91)"
+                prefix="+91"
                 autoComplete="tel"
+                maxLength={10}
               />
               
               <Box>
