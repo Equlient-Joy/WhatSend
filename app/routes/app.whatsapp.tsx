@@ -151,6 +151,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return data({ refreshed: true });
   }
 
+  if (intent === "deleteTestPhone") {
+    try {
+      await prisma.shop.update({
+        where: { shopifyDomain: shopId },
+        data: { testPhone: null }
+      });
+      return data({ status: "deleted", message: "Test phone number deleted" });
+    } catch (error) {
+      console.error('Failed to delete test phone:', error);
+      return data({ status: "error", message: "Failed to delete test phone" }, { status: 500 });
+    }
+  }
+
   return null;
 };
 
@@ -277,19 +290,34 @@ export default function WhatsAppConnectionPage() {
               </InlineStack>
               
               {testPhone ? (
-                <BlockStack gap="200">
-                  <Text as="p" variant="bodyMd">
-                    <strong>{testPhone}</strong>
-                  </Text>
+                <BlockStack gap="300">
+                  <Box background="bg-surface-secondary" padding="400" borderRadius="200">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <BlockStack gap="100">
+                        <Text as="p" variant="headingSm">
+                          {testPhone}
+                        </Text>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Test messages will be sent to this number
+                        </Text>
+                      </BlockStack>
+                      <fetcher.Form method="POST">
+                        <input type="hidden" name="intent" value="deleteTestPhone" />
+                        <Button submit tone="critical" variant="plain">
+                          Remove
+                        </Button>
+                      </fetcher.Form>
+                    </InlineStack>
+                  </Box>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Test messages will be sent to this number. You can change it on the home page.
+                    Use the home page to change this number.
                   </Text>
                 </BlockStack>
               ) : (
                 <BlockStack gap="200">
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    No test phone number configured. Add one on the home page to test message templates.
-                  </Text>
+                  <Banner tone="warning">
+                    No test phone number configured. Add one to test message templates.
+                  </Banner>
                   <Box>
                     <Button url="/app">Go to Home Page</Button>
                   </Box>

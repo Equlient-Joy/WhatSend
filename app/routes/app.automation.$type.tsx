@@ -30,6 +30,7 @@ import {
   AUTOMATION_META 
 } from "../services/automation/automation.constants";
 import { TEMPLATE_VARIABLES } from "../services/automation/template.service";
+import { queueMessage } from "../services/queue/message-queue.service";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -161,30 +162,83 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
     }
     
-    // Create sample message with placeholder values
-    const sampleMessage = template
-      .replace(/\{\{customer_name\}\}/g, 'Test Customer')
-      .replace(/\{\{first_name\}\}/g, 'Test')
-      .replace(/\{\{order_number\}\}/g, '#TEST1234')
-      .replace(/\{\{order_total\}\}/g, '$99.99')
-      .replace(/\{\{product_list\}\}/g, '1x Sample Product')
-      .replace(/\{\{tracking_number\}\}/g, 'TRACK123456')
-      .replace(/\{\{tracking_url\}\}/g, 'https://example.com/track')
-      .replace(/\{\{checkout_url\}\}/g, 'https://example.com/checkout')
-      .replace(/\{\{order_url\}\}/g, 'https://example.com/order')
-      .replace(/\{\{product_name\}\}/g, 'Sample Product')
-      .replace(/\{\{product_url\}\}/g, 'https://example.com/product')
+    // Comprehensive sample values for testing
+    const sampleValues = {
+      // Customer info
+      customer_name: 'Rahul Sharma',
+      first_name: 'Rahul',
+      last_name: 'Sharma',
+      phone: testPhone,
+      
+      // Shop info
+      shop_name: 'Your Store',
+      shopName: 'Your Store',
+      
+      // Order info
+      order_number: '#1234',
+      orderId: '1234',
+      order_total: '₹2,999.00',
+      order_date: new Date().toLocaleDateString('en-IN'),
+      order_url: 'https://yourstore.myshopify.com/orders/1234',
+      
+      // Products
+      product_list: '1x Premium T-Shirt (Size: L, Color: Blue)\n1x Cotton Pants (Size: 32)',
+      product_name: 'Premium T-Shirt',
+      product_url: 'https://yourstore.myshopify.com/products/premium-tshirt',
+      itemsXquantity: '2 items',
+      
+      // Fulfillment
+      tracking_number: 'AWB123456789',
+      trackingNumber: 'AWB123456789',
+      tracking_url: 'https://tracking.example.com/AWB123456789',
+      carrier_name: 'BlueDart',
+      estimated_delivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN'),
+      
+      // Checkout recovery
+      checkout_url: 'https://yourstore.myshopify.com/checkout/recover/abc123',
+      cart_total: '₹2,999.00',
+      cart_items: '2 items in your cart',
+      
+      // Payment/COD
+      payment_method: 'Cash on Delivery',
+      cod_amount: '₹2,999.00',
+    };
+    
+    // Replace all placeholders with sample values
+    let sampleMessage = template;
+    for (const [key, value] of Object.entries(sampleValues)) {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}|\\{${key}\\}`, 'gi');
+      sampleMessage = sampleMessage.replace(regex, String(value));
+    }
+    
+    // Clean up any remaining conditionals
+    sampleMessage = sampleMessage
       .replace(/\{\{#if.*?\}\}/g, '')
-      .replace(/\{\{\/if\}\}/g, '');
+      .replace(/\{\{\/if\}\}/g, '')
+      .replace(/\{\{.*?\}\}/g, '[sample]'); // Replace any remaining placeholders
     
-    // TODO: In production, this would call the actual WhatsApp sending service
-    // For now, we'll simulate success
-    // await sendWhatsAppMessage(testPhone, sampleMessage);
-    
-    return data({ 
-      testSuccess: true,
-      testMessage: `Test message sent to ${testPhone}: "${sampleMessage.substring(0, 100)}..."` 
-    });
+    try {
+      // Queue the actual message for sending
+      await queueMessage({
+        shopId: shop,
+        phone: testPhone,
+        message: sampleMessage,
+        messageType: 'test_message',
+        orderId: 'TEST-' + Date.now(),
+        orderNumber: '#TEST'
+      });
+      
+      return data({ 
+        testSuccess: true,
+        testMessage: `✅ Test message queued for ${testPhone}. Message will be sent shortly.` 
+      });
+    } catch (error) {
+      console.error('Failed to queue test message:', error);
+      return data({ 
+        testError: 'Failed to send test message. Please check your WhatsApp connection.',
+        testSuccess: false 
+      });
+    }
   }
 
   return data({ error: "Unknown action" }, { status: 400 });
