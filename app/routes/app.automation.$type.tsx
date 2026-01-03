@@ -12,7 +12,8 @@ import {
   Banner,
   Box,
   Badge,
-  Divider
+  Divider,
+  Checkbox
 } from "@shopify/polaris";
 import { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
@@ -78,6 +79,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         enabled: false,
         template: '',
         delayMinutes: 0,
+        sendProductImages: false,
         conditions: null
       },
       meta,
@@ -101,6 +103,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const template = formData.get("template") as string;
     const delayMinutes = parseInt(formData.get("delayMinutes") as string) || 0;
     const adminPhone = formData.get("adminPhone") as string;
+    const sendProductImages = formData.get("sendProductImages") === "true";
 
     // Build conditions object if admin phone provided
     const conditions = adminPhone ? { adminPhone } : undefined;
@@ -109,6 +112,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       enabled,
       template,
       delayMinutes,
+      sendProductImages,
       conditions
     });
 
@@ -200,11 +204,17 @@ export default function AutomationSettingsPage() {
   const [adminPhone, setAdminPhone] = useState(
     (automation?.conditions as { adminPhone?: string } | null)?.adminPhone || ''
   );
+  const [sendProductImages, setSendProductImages] = useState(
+    (automation as { sendProductImages?: boolean } | null)?.sendProductImages || false
+  );
 
   const isLoading = fetcher.state === "submitting";
   const showDelay = type === 'abandoned_checkout' || type === 'draft_order_recovery';
   const showAdminPhone = type === 'admin_notification';
   const isComingSoon = meta.comingSoon;
+  
+  // Show product images option for customer-facing automations
+  const showProductImages = type === 'order_confirmation' || type === 'order_fulfillment' || type === 'abandoned_checkout';
 
   // Update local state when toggle completes
   useEffect(() => {
@@ -274,11 +284,88 @@ export default function AutomationSettingsPage() {
                 </BlockStack>
               </Card>
 
+              {/* Test Message Card - NEW: Moved before Message Template */}
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">Test Message</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {testPhone 
+                      ? `Send a test message to your configured test number: ${testPhone}`
+                      : "Configure a test phone number on the home page to test this automation."}
+                  </Text>
+                  
+                  <InlineStack gap="200">
+                    <Button 
+                      onClick={handleTest} 
+                      loading={isLoading && fetcher.formData?.get('intent') === 'test'}
+                      disabled={!testPhone || !isConnected}
+                    >
+                      Send Test Message
+                    </Button>
+                  </InlineStack>
+                  
+                  {/* Status indicators */}
+                  {(!testPhone || !isConnected) && (
+                    <Box paddingBlockStart="100">
+                      <Text as="p" variant="bodySm" tone="caution">
+                        {!testPhone 
+                          ? "⚠️ No test phone number configured. Add one on the home page."
+                          : "⚠️ WhatsApp is not connected. Connect it first to test."}
+                      </Text>
+                    </Box>
+                  )}
+                </BlockStack>
+              </Card>
+
+              {/* Test Result Banners */}
+              {fetcher.data?.testSuccess && (
+                <Banner tone="success" onDismiss={() => {}}>
+                  <p>{fetcher.data.testMessage}</p>
+                </Banner>
+              )}
+              
+              {fetcher.data?.testError && (
+                <Banner tone="critical" onDismiss={() => {}}>
+                  <p>{fetcher.data.testError}</p>
+                </Banner>
+              )}
+
+              {/* Product Images Card - NEW */}
+              {showProductImages && (
+                <Card>
+                  <InlineStack align="space-between" blockAlign="start">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">Product Images</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Include product images with confirmation messages to enhance customer experience.
+                      </Text>
+                    </BlockStack>
+                    <Box>
+                      <Checkbox
+                        label="Send product images with confirmation messages"
+                        labelHidden
+                        checked={sendProductImages}
+                        onChange={setSendProductImages}
+                      />
+                    </Box>
+                  </InlineStack>
+                  <Box paddingBlockStart="200">
+                    <Checkbox
+                      label="Send product images with confirmation messages"
+                      helpText="When enabled, the first product image will be sent along with the confirmation message."
+                      checked={sendProductImages}
+                      onChange={setSendProductImages}
+                    />
+                  </Box>
+                </Card>
+              )}
+
               {/* Settings Form */}
               <Card>
                 <fetcher.Form method="post">
                   <input type="hidden" name="intent" value="save" />
                   <input type="hidden" name="enabled" value={String(enabled)} />
+                  <input type="hidden" name="sendProductImages" value={String(sendProductImages)} />
                   
                   <BlockStack gap="400">
                     <Text as="h2" variant="headingMd">Message Template</Text>
@@ -309,7 +396,7 @@ export default function AutomationSettingsPage() {
                       />
                     )}
 
-                    {/* Admin Phone */}
+                    {/* Admin Phone - for admin_notification only */}
                     {showAdminPhone && (
                       <TextField
                         label="Admin WhatsApp Number"
@@ -318,47 +405,16 @@ export default function AutomationSettingsPage() {
                         name="adminPhone"
                         placeholder="+1234567890"
                         autoComplete="off"
-                        helpText="The phone number to receive order notifications (include country code)"
+                        helpText="The phone number to receive order notifications (include country code). This is where real order alerts will be sent."
                       />
                     )}
 
-                    <InlineStack gap="200">
-                      <Button submit variant="primary" loading={isLoading && fetcher.formData?.get('intent') === 'save'}>
-                        Save Settings
-                      </Button>
-                      <Button 
-                        onClick={handleTest} 
-                        loading={isLoading && fetcher.formData?.get('intent') === 'test'}
-                        disabled={!testPhone || !isConnected}
-                      >
-                        Test Message
-                      </Button>
-                    </InlineStack>
-                    
-                    {/* Test button help text */}
-                    {(!testPhone || !isConnected) && (
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {!testPhone 
-                          ? "Add a test phone number on the home page to test messages."
-                          : "Connect WhatsApp to test messages."}
-                      </Text>
-                    )}
+                    <Button submit variant="primary" loading={isLoading && fetcher.formData?.get('intent') === 'save'}>
+                      Save Settings
+                    </Button>
                   </BlockStack>
                 </fetcher.Form>
               </Card>
-
-              {/* Test Result Banners */}
-              {fetcher.data?.testSuccess && (
-                <Banner tone="success" onDismiss={() => {}}>
-                  <p>{fetcher.data.testMessage}</p>
-                </Banner>
-              )}
-              
-              {fetcher.data?.testError && (
-                <Banner tone="critical" onDismiss={() => {}}>
-                  <p>{fetcher.data.testError}</p>
-                </Banner>
-              )}
 
               {/* Available Variables */}
               <Card>

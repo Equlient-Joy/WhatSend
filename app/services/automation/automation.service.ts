@@ -250,7 +250,7 @@ export async function getAllAutomations(shopDomain: string) {
 export async function updateAutomation(
   shopDomain: string, 
   type: AutomationType, 
-  data: { enabled?: boolean; template?: string; delayMinutes?: number; conditions?: object }
+  data: { enabled?: boolean; template?: string; delayMinutes?: number; sendProductImages?: boolean; conditions?: object }
 ) {
   const shop = await prisma.shop.findUnique({
     where: { shopifyDomain: shopDomain }
@@ -268,12 +268,14 @@ export async function updateAutomation(
       enabled: data.enabled ?? false,
       template: data.template ?? DEFAULT_TEMPLATES[type],
       delayMinutes: data.delayMinutes ?? 0,
+      sendProductImages: data.sendProductImages ?? false,
       conditions: data.conditions ?? undefined
     },
     update: {
       enabled: data.enabled,
       template: data.template,
       delayMinutes: data.delayMinutes,
+      sendProductImages: data.sendProductImages,
       conditions: data.conditions ?? undefined
     }
   });

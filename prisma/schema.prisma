@@ -85,6 +85,7 @@ model Automation {
   delayMinutes Int     @default(0) // Delay before sending
   
   // Advanced Config
+  sendProductImages Boolean @default(false) // Send first product image with message
   conditions  Json?    // Additional conditions (order value > X, etc.)
   
   // Timestamps

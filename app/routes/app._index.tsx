@@ -360,6 +360,7 @@ export default function AppHome() {
                 Connect with your customers on WhatsApp and boost your sales with automated messaging workflows.
               </Text>
               <InlineStack gap="200">
+                <Button url="/app/dashboard" variant="primary">Messages Dashboard</Button>
                 <Button url="/app/plans">Plans & Usage</Button>
               </InlineStack>
             </BlockStack>
