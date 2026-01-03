@@ -239,7 +239,7 @@ export class BaileysService {
       
       this.logger.info(`Session cleared for shop ${shopId}`);
     } catch (error) {
-      this.logger.error(`Failed to clear session for shop ${shopId}:`, error instanceof Error ? error.message : String(error));
+      this.logger.error({ err: error }, `Failed to clear session for shop ${shopId}`);
     }
   }
 
